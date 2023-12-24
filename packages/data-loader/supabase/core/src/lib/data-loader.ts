@@ -8,12 +8,17 @@ import { DataLoader } from './data-loader-types';
 export async function supabaseDataLoader<
   Client extends SupabaseClient<DataLoader.GenericDatabase>,
   TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
-  Query extends DataLoader.Query<DataLoader.ExtractDatabase<Client>, TableName> = DataLoader.StarOperator,
+  Query extends DataLoader.Query<
+    DataLoader.ExtractDatabase<Client>,
+    TableName
+  > = DataLoader.StarOperator,
   Single extends boolean | undefined = false,
->(
-  props: DataLoader.DataLoaderProps<Client, TableName, Query, Single>,
-) {
-  type Data = DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>;
+>(props: DataLoader.DataLoaderProps<Client, TableName, Query, Single>) {
+  type Data = DataLoader.Data<
+    DataLoader.ExtractDatabase<Client>,
+    TableName,
+    Query
+  >;
 
   const {
     client,
@@ -247,9 +252,7 @@ export async function supabaseDataLoader<
       data: value,
       count: response.count ?? 0,
     } as {
-      data: Single extends true
-        ? Data | undefined
-        : Data[]
+      data: Single extends true ? Data | undefined : Data[];
       count: number;
     };
   }
@@ -260,9 +263,7 @@ export async function supabaseDataLoader<
     data: response.data ?? [],
     count: response.count ?? 0,
   } as {
-    data: Single extends true
-      ? Data | undefined
-      : Data[];
+    data: Single extends true ? Data | undefined : Data[];
     count: number;
   };
 }

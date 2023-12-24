@@ -1,8 +1,7 @@
-import type { QueryData, SupabaseClient } from '@supabase/supabase-js';
 import type { PostgrestFilterBuilder } from '@supabase/postgrest-js';
-
 import type { GetResult } from '@supabase/postgrest-js/dist/module/select-query-parser';
 import { GenericSchema } from '@supabase/postgrest-js/dist/module/types';
+import type { QueryData, SupabaseClient } from '@supabase/supabase-js';
 
 export namespace DataLoader {
   export type GenericDatabase = {
@@ -340,7 +339,10 @@ export namespace DataLoader {
   export interface DataLoaderProps<
     Client extends SupabaseClient<DataLoader.GenericDatabase>,
     TableName extends DataLoader.TableNames<ExtractDatabase<Client>>,
-    Query extends DataLoader.Query<ExtractDatabase<Client>, TableName> = StarOperator,
+    Query extends DataLoader.Query<
+      ExtractDatabase<Client>,
+      TableName
+    > = StarOperator,
     Single extends boolean | undefined = false,
   > {
     client: Client;
@@ -355,8 +357,8 @@ export namespace DataLoader {
   }
 
   export type ExtractDatabase<Client> = Client extends SupabaseClient<
-      infer Database extends DataLoader.GenericDatabase
-    >
+    infer Database extends DataLoader.GenericDatabase
+  >
     ? Database
     : never;
 }

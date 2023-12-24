@@ -2,5 +2,17 @@
   "singleQuote": true,
   "tabWidth": 2,
   "trailingComma": "all",
-  "bracketSpacing": true
+  "bracketSpacing": true,
+  "plugins": ["@trivago/prettier-plugin-sort-imports"],
+  "importOrderSortSpecifiers": true,
+  "importOrder": [
+    "react",
+    "react-dom",
+    "next",
+    "^next/(.*)",
+    "@remix-run/(.*)",
+    "^@(.)+$",
+    "^@/(.*)$",
+    "^[./]"
+  ]
 }

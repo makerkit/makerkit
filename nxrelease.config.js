@@ -1,3 +1,3 @@
 module.exports = {
-  "repositoryUrl": "https://github.com/makerkit/makerkit"
+  repositoryUrl: 'https://github.com/makerkit/makerkit',
 };

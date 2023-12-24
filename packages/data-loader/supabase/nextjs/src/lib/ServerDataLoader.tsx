@@ -1,12 +1,15 @@
+import { ObjectToCamel, objectToCamel } from 'ts-case-convert/lib/caseConvert';
+import {
+  DataLoader,
+  supabaseDataLoader,
+} from '@makerkit/data-loader-supabase-core';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { DataLoader, supabaseDataLoader } from '@makerkit/data-loader-supabase-core';
-import { objectToCamel, ObjectToCamel } from 'ts-case-convert/lib/caseConvert';
 
 const PAGE_SIZE = 10;
 
 type TransformData<
   Data extends object,
-  CamelCase extends boolean
+  CamelCase extends boolean,
 > = CamelCase extends true ? ObjectToCamel<Data> : Data;
 
 type ReturnData<
@@ -15,9 +18,13 @@ type ReturnData<
   Query extends DataLoader.Query<Database, TableName> = DataLoader.StarOperator,
   Single extends boolean = false,
   CamelCase extends boolean = false,
-> = Single extends true ?
-  TransformData<DataLoader.Data<Database, TableName, Query>, CamelCase> | undefined :
-  Array<TransformData<DataLoader.Data<Database, TableName, Query>, CamelCase>>;
+> = Single extends true
+  ?
+      | TransformData<DataLoader.Data<Database, TableName, Query>, CamelCase>
+      | undefined
+  : Array<
+      TransformData<DataLoader.Data<Database, TableName, Query>, CamelCase>
+    >;
 
 /**
  * Represents an interface for loading server data using a Data Loader.
@@ -35,7 +42,13 @@ export interface ServerDataLoaderProps<
   camelCase?: CamelCase;
 
   children: (props: {
-    data: ReturnData<DataLoader.ExtractDatabase<Client>, TableName, Query, Single, CamelCase>,
+    data: ReturnData<
+      DataLoader.ExtractDatabase<Client>,
+      TableName,
+      Query,
+      Single,
+      CamelCase
+    >;
     count: number;
     page: number;
     pageSize: number;
@@ -61,7 +74,10 @@ export interface ServerDataLoaderProps<
 export async function ServerDataLoader<
   Client extends SupabaseClient<DataLoader.GenericDatabase>,
   TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
-  Query extends DataLoader.Query<DataLoader.ExtractDatabase<Client>, TableName> = DataLoader.StarOperator,
+  Query extends DataLoader.Query<
+    DataLoader.ExtractDatabase<Client>,
+    TableName
+  > = DataLoader.StarOperator,
   Single extends boolean = false,
   CamelCase extends boolean = false,
 >(props: ServerDataLoaderProps<Client, TableName, Query, Single, CamelCase>) {
@@ -72,8 +88,21 @@ export async function ServerDataLoader<
     Single
   >(props);
 
-  const transformedData = (props.camelCase ?
-    Array.isArray(data) ? data.map(objectToCamel) : data ? objectToCamel(data) : undefined : data) as ReturnData<DataLoader.ExtractDatabase<Client>, TableName, Query, Single, CamelCase>;
+  const transformedData = (
+    props.camelCase
+      ? Array.isArray(data)
+        ? data.map(objectToCamel)
+        : data
+        ? objectToCamel(data)
+        : undefined
+      : data
+  ) as ReturnData<
+    DataLoader.ExtractDatabase<Client>,
+    TableName,
+    Query,
+    Single,
+    CamelCase
+  >;
 
   return props.children({
     data: transformedData,
@@ -87,11 +116,12 @@ export async function ServerDataLoader<
 async function fetchData<
   Client extends SupabaseClient<DataLoader.GenericDatabase>,
   TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
-  Query extends DataLoader.Query<DataLoader.ExtractDatabase<Client>, TableName> = DataLoader.StarOperator,
+  Query extends DataLoader.Query<
+    DataLoader.ExtractDatabase<Client>,
+    TableName
+  > = DataLoader.StarOperator,
   Single extends boolean = false,
->(
-  props: DataLoader.DataLoaderProps<Client, TableName, Query, Single>,
-) {
+>(props: DataLoader.DataLoaderProps<Client, TableName, Query, Single>) {
   const { data, count } = await supabaseDataLoader<
     Client,
     TableName,

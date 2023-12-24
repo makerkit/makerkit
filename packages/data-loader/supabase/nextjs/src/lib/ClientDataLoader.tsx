@@ -1,10 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
-import { SupabaseClient } from '@supabase/supabase-js';
-
+import { useRouter } from 'next/navigation';
 import { DataLoader } from '@makerkit/data-loader-supabase-core';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { useTableFetcher } from './use-table-fetcher';
 
 const PAGE_SIZE = 10;
@@ -12,7 +11,10 @@ const PAGE_SIZE = 10;
 interface DataLoaderProps<
   Client extends SupabaseClient<DataLoader.GenericDatabase>,
   TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
-  Query extends DataLoader.Query<DataLoader.ExtractDatabase<Client>, TableName> = DataLoader.StarOperator,
+  Query extends DataLoader.Query<
+    DataLoader.ExtractDatabase<Client>,
+    TableName
+  > = DataLoader.StarOperator,
   Single extends boolean = false,
 > extends DataLoader.DataLoaderProps<Client, TableName, Query, Single> {
   client: Client;
@@ -20,8 +22,20 @@ interface DataLoaderProps<
   children: (props: {
     result: {
       data: Single extends true
-        ? DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query> | undefined
-        : Array<DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>>;
+        ?
+            | DataLoader.Data<
+                DataLoader.ExtractDatabase<Client>,
+                TableName,
+                Query
+              >
+            | undefined
+        : Array<
+            DataLoader.Data<
+              DataLoader.ExtractDatabase<Client>,
+              TableName,
+              Query
+            >
+          >;
       count: number;
       page: number;
       pageSize: number;
@@ -43,7 +57,10 @@ interface DataLoaderProps<
 export function ClientDataLoader<
   Client extends SupabaseClient<DataLoader.GenericDatabase>,
   TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
-  Query extends DataLoader.Query<DataLoader.ExtractDatabase<Client>, TableName> = DataLoader.StarOperator,
+  Query extends DataLoader.Query<
+    DataLoader.ExtractDatabase<Client>,
+    TableName
+  > = DataLoader.StarOperator,
   Single extends boolean = false,
 >(props: DataLoaderProps<Client, TableName, Query, Single>) {
   const { data, count, error, isLoading } = useTableFetcher<
