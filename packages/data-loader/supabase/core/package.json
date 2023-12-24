@@ -1,0 +1,16 @@
+{
+  "name": "@makerkit/data-loader-supabase-core",
+  "version": "0.0.1",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "peerDependencies": {
+    "@supabase/supabase-js": ">=2.0.0",
+    "@supabase/postgrest-js": ">1.0.0"
+  },
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./index.js"
+    }
+  }
+}
