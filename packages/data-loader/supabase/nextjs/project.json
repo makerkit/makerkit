@@ -11,6 +11,12 @@
         "{options.outputFile}"
       ]
     },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p {projectRoot}/tsconfig.lib.json"
+      }
+    },
     "build": {
       "executor": "@nx/vite:build",
       "outputs": [

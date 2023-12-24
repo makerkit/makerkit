@@ -6,6 +6,7 @@
     "build": "nx run-many --target=build --all",
     "lint": "nx run-many --target=lint --all",
     "test": "nx run-many --target=test --all",
+    "typecheck": "nx run-many --target=typecheck --all",
     "release": "npx nx run-many --target=semantic-release --parallel=false"
   },
   "repository": {
@@ -16,6 +17,10 @@
     "name": "Makerkit",
     "url": "https://makerkit.dev"
   },
+  "pre-commit": [
+    "lint",
+    "typecheck"
+  ],
   "private": true,
   "dependencies": {
     "@supabase/supabase-js": "^2.39.1",
@@ -57,6 +62,7 @@
     "eslint-plugin-react-hooks": "4.6.0",
     "jsdom": "~22.1.0",
     "nx": "17.2.7",
+    "pre-commit": "^1.2.2",
     "prettier": "^2.6.2",
     "typescript": "~5.2.2",
     "vite": "^5.0.0",

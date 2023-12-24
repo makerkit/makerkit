@@ -38,6 +38,12 @@
         "reportsDirectory": "../../../../coverage/packages/data-loader/supabase/core"
       }
     },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p {projectRoot}/tsconfig.lib.json"
+      }
+    },
     "semantic-release": {
       "executor": "@theunderscorer/nx-semantic-release:semantic-release",
       "options": {

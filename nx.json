@@ -36,6 +36,9 @@
         "{workspaceRoot}/eslint.config.js"
       ]
     },
+    "typecheck": {
+      "cache": true
+    },
     "@nx/vite:test": {
       "cache": true,
       "inputs": ["default", "^default"]
