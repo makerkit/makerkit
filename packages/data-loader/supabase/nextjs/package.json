@@ -1,11 +1,11 @@
 {
   "name": "@makerkit/data-loader-supabase-nextjs",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "main": "./index.js",
   "types": "./index.d.ts",
   "dependencies": {
     "ts-case-convert": "^2.0.6",
-    "@makerkit/data-loader-supabase-core": "0.0.1"
+    "@makerkit/data-loader-supabase-core": "0.0.2"
   },
   "peerDependencies": {
     "next": ">=13.4.0",

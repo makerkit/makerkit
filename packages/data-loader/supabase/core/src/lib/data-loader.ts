@@ -245,7 +245,7 @@ export async function supabaseDataLoader<
   }
 
   if (props.single) {
-    const response = await query;
+    const response = await query.maybeSingle();
     const value = (response.data ?? undefined) as Data | undefined;
 
     return {

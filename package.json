@@ -7,7 +7,7 @@
     "lint": "nx run-many --target=lint --all",
     "test": "nx run-many --target=test --all",
     "typecheck": "nx run-many --target=typecheck --all",
-    "release": "npx nx run-many --target=semantic-release --parallel=false",
+    "release": "nx run-many --target=version --all",
     "format": "nx format:write --all"
   },
   "repository": {
@@ -35,6 +35,7 @@
   "devDependencies": {
     "@babel/core": "^7.14.5",
     "@babel/preset-react": "^7.14.5",
+    "@jscutlery/semver": "^4.2.0",
     "@nx/eslint": "17.2.7",
     "@nx/eslint-plugin": "17.2.7",
     "@nx/js": "17.2.7",

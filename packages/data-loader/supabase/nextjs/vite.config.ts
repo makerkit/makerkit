@@ -41,7 +41,16 @@ export default defineConfig({
     },
     rollupOptions: {
       // External packages that should not be bundled into your library.
-      external: ['react', 'react-dom', 'react/jsx-runtime'],
+      external: [
+        'react',
+        'react-dom',
+        'react/jsx-runtime',
+        'swr',
+        /@supabase\/(.)*/,
+        /^next(.*)/,
+        /^ts-case-convert(.*)/,
+        '@makerkit/data-loader-supabase-core',
+      ],
     },
   },
 
