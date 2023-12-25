@@ -8,7 +8,10 @@
     "test": "nx run-many --target=test --all",
     "typecheck": "nx run-many --target=typecheck --all",
     "release": "nx run-many --target=version --all",
-    "format": "nx format:write --all"
+    "format": "nx format:write --all",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "typegen": "supabase gen types typescript --local > supabase/database.types.ts"
   },
   "repository": {
     "type": "git",
@@ -28,6 +31,7 @@
     "next": "^14.0.4",
     "react": "^18.2.0",
     "react-dom": "18.2.0",
+    "supabase": "^1.123.4",
     "swr": "^2.2.4",
     "ts-case-convert": "^2.0.6",
     "tslib": "^2.3.0"
@@ -46,7 +50,7 @@
     "@svgr/rollup": "^8.0.1",
     "@swc-node/register": "~1.6.7",
     "@swc/core": "~1.3.85",
-    "@testing-library/react": "14.0.0",
+    "@testing-library/react": "^14.1.2",
     "@theunderscorer/nx-semantic-release": "^2.8.0",
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
     "@types/node": "18.14.2",
@@ -55,8 +59,9 @@
     "@typescript-eslint/eslint-plugin": "^6.9.1",
     "@typescript-eslint/parser": "^6.9.1",
     "@vitejs/plugin-react": "^4.2.0",
-    "@vitest/coverage-v8": "~0.34.6",
-    "@vitest/ui": "~0.34.6",
+    "@vitest/browser": "^1.1.0",
+    "@vitest/coverage-v8": "~1.1.0",
+    "@vitest/ui": "~1.1.0",
     "eslint": "~8.48.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-import": "2.27.5",
@@ -65,11 +70,12 @@
     "eslint-plugin-react-hooks": "4.6.0",
     "jsdom": "~22.1.0",
     "nx": "17.2.7",
+    "playwright": "^1.40.1",
     "pre-commit": "^1.2.2",
-    "prettier": "^2.6.2",
-    "typescript": "~5.2.2",
+    "prettier": "^3.1.1",
+    "typescript": "~5.3.3",
     "vite": "^5.0.0",
     "vite-plugin-dts": "~2.3.0",
-    "vitest": "~0.34.6"
+    "vitest": "~1.1.0"
   }
 }

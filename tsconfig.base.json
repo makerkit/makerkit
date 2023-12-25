@@ -20,7 +20,9 @@
       ],
       "@makerkit/data-loader-supabase-nextjs": [
         "packages/data-loader/supabase/nextjs/src/index.ts"
-      ]
+      ],
+      "@makerkit/test-utils": ["packages/test-utils/src/index.ts"],
+      "database.types": ["supabase/database.types.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

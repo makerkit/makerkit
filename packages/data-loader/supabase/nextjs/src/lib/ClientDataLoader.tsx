@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { DataLoader } from '@makerkit/data-loader-supabase-core';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { useTableFetcher } from './use-table-fetcher';
+import { useSupabaseQuery } from './use-supabase-query';
 
 const PAGE_SIZE = 10;
 
@@ -63,7 +63,7 @@ export function ClientDataLoader<
   > = DataLoader.StarOperator,
   Single extends boolean = false,
 >(props: DataLoaderProps<Client, TableName, Query, Single>) {
-  const { data, count, error, isLoading } = useTableFetcher<
+  const { data, count, error, isLoading } = useSupabaseQuery<
     Client,
     TableName,
     Query,

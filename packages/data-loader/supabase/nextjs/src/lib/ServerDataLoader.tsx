@@ -1,7 +1,7 @@
 import { ObjectToCamel, objectToCamel } from 'ts-case-convert/lib/caseConvert';
 import {
   DataLoader,
-  supabaseDataLoader,
+  fetchDataFromSupabase,
 } from '@makerkit/data-loader-supabase-core';
 import { SupabaseClient } from '@supabase/supabase-js';
 
@@ -122,7 +122,7 @@ async function fetchData<
   > = DataLoader.StarOperator,
   Single extends boolean = false,
 >(props: DataLoader.DataLoaderProps<Client, TableName, Query, Single>) {
-  const { data, count } = await supabaseDataLoader<
+  const { data, count } = await fetchDataFromSupabase<
     Client,
     TableName,
     Query,

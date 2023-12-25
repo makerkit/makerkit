@@ -1,11 +1,12 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { DataLoader } from './data-loader-types';
+import { buildPostgrestQuery } from './utils';
 
 /**
  * Builds a query for a Supabase data provider.
  *
  */
-export async function supabaseDataLoader<
+export async function fetchDataFromSupabase<
   Client extends SupabaseClient<DataLoader.GenericDatabase>,
   TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
   Query extends DataLoader.Query<
@@ -31,35 +32,7 @@ export async function supabaseDataLoader<
     count = 'exact',
   } = props;
 
-  let selectString: string;
-
-  if (Array.isArray(select)) {
-    const selectedProperties = select as Array<string>;
-    const joins = new Map<string, string[]>();
-
-    const value = [];
-
-    for (let n = 0; n < selectedProperties.length; n++) {
-      const property = selectedProperties[n];
-
-      if (property.split('.').length > 1) {
-        const [table, column] = property.split('.');
-
-        joins.set(table, [...(joins.get(table) ?? []), column]);
-      } else {
-        value.push(property);
-      }
-    }
-
-    for (const [table, columns] of Array.from(joins.entries())) {
-      value.push(`${table} !inner (${columns.join(',')})`);
-    }
-
-    selectString = value.join(',');
-  } else {
-    selectString = select;
-  }
-
+  const selectString = buildPostgrestQuery(select);
   const tableRef = client.from(table as string);
 
   let query = tableRef.select(selectString, {

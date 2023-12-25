@@ -15,7 +15,7 @@ To import the Data Loader SDK, you can use multiple approaches.
 1. **Server Components** - i.e. to be used in RSCs
 2. **Client Components** - i.e. to be used in SPA/SSR
 3. **React Hook** - i.e. to be used in React Client Components
-4. **Directly** using the `supabaseDataLoader` function. Useful for server-side code - e.g. in a Route Handler, or Server Action
+4. **Directly** using the `fetchDataFromSupabase` function. Useful for server-side code - e.g. in a Route Handler, or Server Action
 
 ## Usage
 
@@ -41,18 +41,18 @@ import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
 
 These are ideal when you want to fetch the data in both the server and the client.
 
-### useTableFetcher React Hook
+### useSupabaseQuery React Hook
 
 Alternatively, you can use a **React Hook** - which can only be used in React Client Components:
 
 ```tsx
 import useSupabase from '~/core/supabase/use-supabase';
-import { useTableFetcher } from '@makerkit/data-loader-supabase-nextjs';
+import { useSupabaseQuery } from '@makerkit/data-loader-supabase-nextjs';
 
 function OrganizationsTable() {
   const client = useSupabase();
 
-  const { data, isLoading, error } = useTableFetcher({
+  const { data, isLoading, error } = useSupabaseQuery({
     client,
     table: 'organizations',
     select: '*',
@@ -86,21 +86,21 @@ function OrganizationsTable() {
 
 ### Directly from the "getDataFromSupabaseTable" function
 
-Underneath the hood, the `ServerDataLoader` and `ClientDataLoader` components use the `supabaseDataLoader` function - which can be used directly to fetch data from Supabase.
+Underneath the hood, the `ServerDataLoader` and `ClientDataLoader` components use the `fetchDataFromSupabase` function - which can be used directly to fetch data from Supabase.
 
-The `supabaseDataLoader` function is exported from the `@makerkit/data-loader-supabase-core` package - which is a dependency of the `@makerkit/data-loader-supabase-nextjs` package.
+The `fetchDataFromSupabase` function is exported from the `@makerkit/data-loader-supabase-core` package - which is a dependency of the `@makerkit/data-loader-supabase-nextjs` package.
 
 You can use this anywhere you want - e.g. in a React Hook, in a React Component, in a Next.js API Route, etc. This is why you will need to pass the appropriate Supabase Client to the function.
 
 ```tsx
 import getSupabaseRouteHandlerClient from '~/core/supabase/route-handler-client';
 import { NextResponse } from 'next/server';
-import { supabaseDataLoader } from '@makerkit/data-loader-supabase-core';
+import { fetchDataFromSupabase } from '@makerkit/data-loader-supabase-core';
 
 export async function GET() {
   const client = getSupabaseRouteHandlerClient();
 
-  const { data, count, pageSize, pageCount } = await supabaseDataLoader({
+  const { data, count, pageSize, pageCount } = await fetchDataFromSupabase({
     client,
     table: 'organizations',
     select: '*',
@@ -126,12 +126,12 @@ If you were to use it in a Server Action, you would need to pass the appropriate
 'use server';
 
 import getSupabaseServerActionClient from '~/core/supabase/server-action-client';
-import { supabaseDataLoader } from '@makerkit/data-loader-supabase-core';
+import { fetchDataFromSupabase } from '@makerkit/data-loader-supabase-core';
 
 export async function serverAction() {
   const client = getSupabaseServerActionClient();
 
-  const { data, count, pageSize, pageCount } = await supabaseDataLoader({
+  const { data, count, pageSize, pageCount } = await fetchDataFromSupabase({
     client,
     table: 'organizations',
     select: '*',
