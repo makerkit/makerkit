@@ -3,6 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/test-utils/src",
   "projectType": "library",
+  "tags": [],
   "targets": {
     "lint": {
       "executor": "@nx/eslint:lint",
@@ -11,18 +12,15 @@
     "build": {
       "executor": "@nx/vite:build",
       "outputs": ["{options.outputPath}"],
-      "defaultConfiguration": "production",
       "options": {
-        "outputPath": "dist/test-utils"
+        "outputPath": "dist/packages/test-utils"
       }
     },
-    "test": {
-      "executor": "@nx/vite:test",
-      "outputs": ["{options.reportsDirectory}"],
+    "typecheck": {
+      "executor": "nx:run-commands",
       "options": {
-        "reportsDirectory": "../../coverage/packages/test-utils"
+        "command": "tsc --noEmit -p {projectRoot}/tsconfig.lib.json"
       }
     }
-  },
-  "tags": []
+  }
 }
