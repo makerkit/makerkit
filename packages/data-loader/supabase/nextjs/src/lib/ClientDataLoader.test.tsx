@@ -74,6 +74,55 @@ test('Fetch a partial table', async (ctx) => {
   ]);
 });
 
+test('Fetch a camelCase table', async (ctx) => {
+  const client = await createSupabaseClient({ auth: true });
+
+  const response = renderHook(() =>
+    useSupabaseQuery({
+      client,
+      table: 'tasks',
+      select: ['id', 'user_id'],
+      camelCase: true,
+    }),
+  );
+
+  await waitFor(() => {
+    return ctx.expect(response.result.current.isLoading).toEqual(false);
+  });
+
+  ctx.expect(response.result.current.data).toEqual([
+    {
+      id: 3,
+      userId: "5ebd5119-7b9a-4722-9463-e945878db095"
+    },
+  ]);
+});
+
+test('Fetch a single item camelCase table', async (ctx) => {
+  const client = await createSupabaseClient({ auth: true });
+
+  const response = renderHook(() =>
+    useSupabaseQuery({
+      client,
+      table: 'tasks',
+      select: ['id', 'user_id'],
+      camelCase: true,
+      single: true,
+    }),
+  );
+
+  await waitFor(() => {
+    return ctx.expect(response.result.current.isLoading).toEqual(false);
+  });
+
+  ctx.expect(response.result.current.data).toEqual(
+    {
+      id: 3,
+      userId: "5ebd5119-7b9a-4722-9463-e945878db095"
+    },
+  );
+});
+
 test('Fetch a partial table with a join', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 

@@ -14,26 +14,17 @@ interface DataLoaderProps<
     TableName
   > = DataLoader.StarOperator,
   Single extends boolean = false,
-> extends DataLoader.DataLoaderProps<Client, TableName, Query, Single> {
+  CamelCase extends boolean = false,
+> extends DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase> {
   client: Client;
 
   children: (props: {
     result: {
-      data: Single extends true
-        ?
-            | DataLoader.Data<
-                DataLoader.ExtractDatabase<Client>,
-                TableName,
-                Query
-              >
-            | undefined
-        : Array<
-            DataLoader.Data<
-              DataLoader.ExtractDatabase<Client>,
-              TableName,
-              Query
-            >
-          >;
+      data: DataLoader.TransformData<DataLoader.Data<
+        DataLoader.ExtractDatabase<Client>,
+        TableName,
+        Query
+      >, CamelCase, Single>;
       count: number;
       page: number;
       pageSize: number;
@@ -60,12 +51,14 @@ export function ClientDataLoader<
     TableName
   > = DataLoader.StarOperator,
   Single extends boolean = false,
->(props: DataLoaderProps<Client, TableName, Query, Single>) {
+  CamelCase extends boolean = false,
+>(props: DataLoaderProps<Client, TableName, Query, Single, CamelCase>) {
   const { data, count, error, isLoading } = useSupabaseQuery<
     Client,
     TableName,
     Query,
-    Single
+    Single,
+    CamelCase
   >(props);
 
   const onPageChange = useRouterParamsChange();

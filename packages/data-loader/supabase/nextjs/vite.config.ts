@@ -48,7 +48,6 @@ export default defineConfig({
         'swr',
         /@supabase\/(.)*/,
         /^next(.*)/,
-        /^ts-case-convert(.*)/,
         '@makerkit/data-loader-supabase-core',
       ],
     },

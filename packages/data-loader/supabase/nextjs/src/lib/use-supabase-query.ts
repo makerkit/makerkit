@@ -1,13 +1,11 @@
 import useQuery from 'swr';
+
 import {
   DataLoader,
   fetchDataFromSupabase,
 } from '@makerkit/data-loader-supabase-core';
-import { SupabaseClient } from '@supabase/supabase-js';
 
-type DataType<Single extends boolean, Data extends object> = Single extends true
-  ? Data | undefined
-  : Data[];
+import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * @name useSupabaseQuery
@@ -22,12 +20,14 @@ export function useSupabaseQuery<
     TableName
   > = DataLoader.StarOperator,
   Single extends boolean = false,
+  CamelCase extends boolean = false,
 >(
-  props: DataLoader.DataLoaderProps<Client, TableName, Selection, Single>,
+  props: DataLoader.DataLoaderProps<Client, TableName, Selection, Single, CamelCase>,
 ): {
-  data: DataType<
-    Single,
-    DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>
+  data: DataLoader.TransformData<
+    DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
+    CamelCase,
+    Single
   >;
   count: number;
   error: Error | null;
@@ -35,38 +35,36 @@ export function useSupabaseQuery<
 } {
   const cacheKey = [
     props.table,
-    props.select,
+    props.select ?? '*',
     props.where,
     props.count,
     props.limit,
     props.page,
     props.single,
     props.sort,
-  ];
+  ].filter(Boolean);
 
   const { data, error, isLoading } = useQuery<{
-    data: DataType<
-      Single,
-      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>
+    data: DataLoader.TransformData<
+      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
+      CamelCase,
+      Single
     >;
     count: number;
   }>(cacheKey, () => {
-    return fetchDataFromSupabase<Client, TableName, Selection, Single>(props);
+    return fetchDataFromSupabase(props);
   });
 
   if (!data) {
     return {
-      data: (props.single ? undefined : []) as DataType<
-        Single,
-        DataLoader.Data<
-          DataLoader.ExtractDatabase<Client>,
-          TableName,
-          Selection
-        >
+      data: (props.single ? undefined : []) as DataLoader.TransformData<
+        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
+        CamelCase,
+        Single
       >,
       count: 0,
       error,
-      isLoading: true,
+      isLoading,
     };
   }
 

@@ -1,4 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { objectToCamel } from 'ts-case-convert';
+
 import { DataLoader } from './data-loader-types';
 import { buildPostgrestQuery } from './utils';
 
@@ -13,13 +15,24 @@ export async function fetchDataFromSupabase<
     DataLoader.ExtractDatabase<Client>,
     TableName
   > = DataLoader.StarOperator,
-  Single extends boolean | undefined = false,
->(props: DataLoader.DataLoaderProps<Client, TableName, Query, Single>) {
-  type Data = DataLoader.Data<
-    DataLoader.ExtractDatabase<Client>,
-    TableName,
-    Query
+  Single extends boolean = false,
+  CamelCase extends boolean = false
+>(props: DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase>) {
+  type Data = DataLoader.TransformData<
+    DataLoader.Data<
+      DataLoader.ExtractDatabase<Client>,
+      TableName,
+      Query
+    >,
+    CamelCase,
+    Single
   >;
+
+  type ReturnData = {
+    data: Data;
+    count: number;
+    error: Error | null;
+  };
 
   const {
     client,
@@ -32,6 +45,7 @@ export async function fetchDataFromSupabase<
     count = 'exact',
   } = props;
 
+  const camelCase = (props.camelCase ?? false) as CamelCase;
   const selectString = buildPostgrestQuery(select);
   const tableRef = client.from(table as string);
 
@@ -160,9 +174,7 @@ export async function fetchDataFromSupabase<
           }
 
           case 'not': {
-            const value = operatorMap[
-              operator
-            ] as DataLoader.GetOperatorOperation<
+            const value = operatorMap[operator] as DataLoader.GetOperatorOperation<
               DataLoader.ExtractDatabase<Client>,
               TableName,
               typeof property,
@@ -217,26 +229,47 @@ export async function fetchDataFromSupabase<
     }
   }
 
+
   if (props.single) {
     const response = await query.maybeSingle();
-    const value = (response.data ?? undefined) as Data | undefined;
+    const data = transformData((response.data ?? undefined), camelCase);
 
     return {
-      data: value,
+      data,
       count: response.count ?? 0,
-    } as {
-      data: Single extends true ? Data | undefined : Data[];
-      count: number;
-    };
+      error: response.error,
+    } as ReturnData;
   }
 
   const response = await query;
+  const data = transformData((response.data ?? []), camelCase);
 
   return {
-    data: response.data ?? [],
+    data,
     count: response.count ?? 0,
-  } as {
-    data: Single extends true ? Data | undefined : Data[];
-    count: number;
-  };
+    error: response.error,
+  } as ReturnData;
+}
+
+function transformData<
+  Data extends object | undefined,
+>(
+  data: Data | Data[],
+  camelCase: boolean,
+) {
+  if (camelCase) {
+    if (Array.isArray(data)) {
+      return data.map((item) => {
+        return item ? objectToCamel(item) : item;
+      });
+    }
+
+    if (!data) {
+      return;
+    }
+
+    return objectToCamel(data);
+  }
+
+  return data;
 }

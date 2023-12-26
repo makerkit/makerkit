@@ -4,7 +4,6 @@
   "main": "./index.js",
   "types": "./index.d.ts",
   "dependencies": {
-    "ts-case-convert": "^2.0.6",
     "@makerkit/data-loader-supabase-core": "0.0.3"
   },
   "peerDependencies": {

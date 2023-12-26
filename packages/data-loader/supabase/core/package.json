@@ -3,9 +3,15 @@
   "version": "0.0.3",
   "main": "./index.js",
   "types": "./index.d.ts",
+  "dependencies": {
+    "ts-case-convert": "^2.0.6"
+  },
   "peerDependencies": {
     "@supabase/supabase-js": ">=2.0.0",
     "@supabase/postgrest-js": ">1.0.0"
+  },
+  "devDependencies": {
+    "vitest": "*"
   },
   "exports": {
     ".": {

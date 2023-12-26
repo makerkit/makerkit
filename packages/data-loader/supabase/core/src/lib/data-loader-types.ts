@@ -1,7 +1,8 @@
 import type { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 import type { GetResult } from '@supabase/postgrest-js/dist/module/select-query-parser';
-import { GenericSchema } from '@supabase/postgrest-js/dist/module/types';
+import type { GenericSchema } from '@supabase/postgrest-js/dist/module/types';
 import type { QueryData, SupabaseClient } from '@supabase/supabase-js';
+import type { ObjectToCamel } from 'ts-case-convert/lib/caseConvert';
 
 export namespace DataLoader {
   export type GenericDatabase = {
@@ -363,6 +364,7 @@ export namespace DataLoader {
       TableName
     > = StarOperator,
     Single extends boolean | undefined = false,
+    CamelCase extends boolean = false,
   > {
     client: Client;
     table: TableName;
@@ -373,6 +375,7 @@ export namespace DataLoader {
     count?: DataLoader.CountType;
     select?: Query;
     single?: Single;
+    camelCase?: CamelCase;
   }
 
   export type ExtractDatabase<Client> = Client extends SupabaseClient<
@@ -380,4 +383,15 @@ export namespace DataLoader {
   >
     ? Database
     : never;
+
+  export type ReturnData<
+    Data extends object | undefined,
+    Single extends boolean,
+  > = Single extends true ? Data : Data[];
+
+  export type TransformData<
+    Data extends object | undefined,
+    CamelCase extends boolean,
+    Single extends boolean,
+  > = CamelCase extends true ? ReturnData<ObjectToCamel<Data>, Single> : ReturnData<Data, Single>;
 }

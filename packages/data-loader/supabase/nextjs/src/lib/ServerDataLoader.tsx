@@ -1,30 +1,11 @@
-import { ObjectToCamel, objectToCamel } from 'ts-case-convert/lib/caseConvert';
 import {
   DataLoader,
   fetchDataFromSupabase,
 } from '@makerkit/data-loader-supabase-core';
+
 import { SupabaseClient } from '@supabase/supabase-js';
 
 const PAGE_SIZE = 10;
-
-type TransformData<
-  Data extends object,
-  CamelCase extends boolean,
-> = CamelCase extends true ? ObjectToCamel<Data> : Data;
-
-type ReturnData<
-  Database extends DataLoader.GenericDatabase,
-  TableName extends keyof DataLoader.Tables<Database>,
-  Query extends DataLoader.Query<Database, TableName> = DataLoader.StarOperator,
-  Single extends boolean = false,
-  CamelCase extends boolean = false,
-> = Single extends true
-  ?
-      | TransformData<DataLoader.Data<Database, TableName, Query>, CamelCase>
-      | undefined
-  : Array<
-      TransformData<DataLoader.Data<Database, TableName, Query>, CamelCase>
-    >;
 
 /**
  * Represents an interface for loading server data using a Data Loader.
@@ -38,17 +19,14 @@ export interface ServerDataLoaderProps<
   > = DataLoader.StarOperator,
   Single extends boolean = false,
   CamelCase extends boolean = false,
-> extends DataLoader.DataLoaderProps<Client, TableName, Query, Single> {
-  camelCase?: CamelCase;
-
+> extends DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase> {
   children: (props: {
-    data: ReturnData<
+    data: DataLoader.TransformData<DataLoader.Data<
       DataLoader.ExtractDatabase<Client>,
       TableName,
-      Query,
-      Single,
-      CamelCase
-    >;
+      Query
+    >, CamelCase, Single>;
+    error: Error | null;
     count: number;
     page: number;
     pageSize: number;
@@ -81,62 +59,21 @@ export async function ServerDataLoader<
   Single extends boolean = false,
   CamelCase extends boolean = false,
 >(props: ServerDataLoaderProps<Client, TableName, Query, Single, CamelCase>) {
-  const { data, count, page, pageCount, pageSize } = await fetchData<
+  const response = await fetchDataFromSupabase<
     Client,
-    TableName,
-    Query,
-    Single
-  >(props);
-
-  const transformedData = (
-    props.camelCase
-      ? Array.isArray(data)
-        ? data.map(objectToCamel)
-        : data
-          ? objectToCamel(data)
-          : undefined
-      : data
-  ) as ReturnData<
-    DataLoader.ExtractDatabase<Client>,
     TableName,
     Query,
     Single,
     CamelCase
-  >;
-
-  return props.children({
-    data: transformedData,
-    count,
-    page,
-    pageCount,
-    pageSize,
-  });
-}
-
-async function fetchData<
-  Client extends SupabaseClient<DataLoader.GenericDatabase>,
-  TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
-  Query extends DataLoader.Query<
-    DataLoader.ExtractDatabase<Client>,
-    TableName
-  > = DataLoader.StarOperator,
-  Single extends boolean = false,
->(props: DataLoader.DataLoaderProps<Client, TableName, Query, Single>) {
-  const { data, count } = await fetchDataFromSupabase<
-    Client,
-    TableName,
-    Query,
-    Single
   >(props);
 
   const pageSize = props.limit ?? PAGE_SIZE;
-  const pageCount = Math.ceil(count / pageSize);
+  const pageCount = Math.ceil(response.count / pageSize);
 
-  return {
-    data,
-    count: count ?? 0,
+  return props.children({
+    ...response,
     page: props.page ?? 1,
     pageCount,
     pageSize,
-  };
+  });
 }
