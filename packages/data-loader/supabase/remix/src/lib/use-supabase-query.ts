@@ -1,4 +1,4 @@
-import useQuery from 'swr';
+import { useQuery } from '@tanstack/react-query';
 import {
   DataLoader,
   fetchDataFromSupabase,
@@ -33,7 +33,7 @@ export function useSupabaseQuery<
   error: Error | null;
   isLoading: boolean;
 } {
-  const cacheKey = [
+  const queryKey = [
     props.table,
     props.select,
     props.where,
@@ -50,8 +50,10 @@ export function useSupabaseQuery<
       DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>
     >;
     count: number;
-  }>(cacheKey, () => {
-    return fetchDataFromSupabase<Client, TableName, Selection, Single>(props);
+  }>({
+    queryKey,
+    queryFn: () =>
+      fetchDataFromSupabase<Client, TableName, Selection, Single>(props),
   });
 
   if (!data) {

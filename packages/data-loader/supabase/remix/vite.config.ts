@@ -1,4 +1,5 @@
-import path from 'path';
+/// <reference types='vitest' />
+import * as path from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 import react from '@vitejs/plugin-react';
@@ -7,7 +8,7 @@ import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 export default defineConfig({
   root: __dirname,
   cacheDir:
-    '../../../../node_modules/.vite/packages/data-loader/supabase/nextjs',
+    '../../../../node_modules/.vite/packages/data-loader/supabase/remix',
 
   plugins: [
     react(),
@@ -24,8 +25,10 @@ export default defineConfig({
   //  plugins: [ nxViteTsPaths() ],
   // },
 
+  // Configuration for building your library.
+  // See: https://vitejs.dev/guide/build.html#library-mode
   build: {
-    outDir: '../dist/packages/data-loader/supabase/nextjs',
+    outDir: '../../../../dist/packages/data-loader/supabase/remix',
     reportCompressedSize: true,
     commonjsOptions: {
       transformMixedEsModules: true,
@@ -33,7 +36,7 @@ export default defineConfig({
     lib: {
       // Could also be a dictionary or array of multiple entry points.
       entry: 'src/index.ts',
-      name: 'data-loader-supabase-nextjs',
+      name: 'data-loader-supabase-remix',
       fileName: 'index',
       // Change this to the formats you want to support.
       // Don't forget to update your package.json as well.
@@ -45,24 +48,25 @@ export default defineConfig({
         'react',
         'react-dom',
         'react/jsx-runtime',
-        'swr',
-        /@supabase\/(.)*/,
-        /^next(.*)/,
-        /^ts-case-convert(.*)/,
-        '@makerkit/data-loader-supabase-core',
+        '@tanstack/react-query',
+        /^@remix-run\/(.*)$/,
+        /^@supabase\/(.*)$/,
       ],
     },
   },
 
   test: {
     globals: true,
-    cache: { dir: '../../../../node_modules/.vitest' },
+    cache: {
+      dir: '../../../../node_modules/.vitest',
+    },
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+
     reporters: ['default'],
     coverage: {
       reportsDirectory:
-        '../../../../coverage/packages/data-loader-supabase-nextjs',
+        '../../../../coverage/packages/data-loader/supabase/remix',
       provider: 'v8',
     },
   },

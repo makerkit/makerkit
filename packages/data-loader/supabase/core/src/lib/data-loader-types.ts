@@ -183,12 +183,12 @@ export namespace DataLoader {
   > = Property extends keyof Row<Database, TableName>
     ? Row<Database, TableName>[Property]
     : Property extends KeysFromNestedProps<Database, TableName>
-    ? Property extends `${infer P}.${infer R}`
-      ? R extends keyof Row<Database, ExtractSubTable<Database, TableName, P>>
-        ? Row<Database, ExtractSubTable<Database, TableName, P>>[R]
+      ? Property extends `${infer P}.${infer R}`
+        ? R extends keyof Row<Database, ExtractSubTable<Database, TableName, P>>
+          ? Row<Database, ExtractSubTable<Database, TableName, P>>[R]
+          : never
         : never
-      : never
-    : never;
+      : never;
 
   export type GetOperatorOperation<
     Database extends GenericDatabase,
@@ -198,45 +198,64 @@ export namespace DataLoader {
   > = Operator extends Eq
     ? GetValueFromNestedProps<Database, TableName, Property>
     : Operator extends Lt
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends Gt
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends Lte
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends Gte
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends Like
-    ? string
-    : Operator extends Ilike
-    ? string
-    : Operator extends In
-    ? Array<GetValueFromNestedProps<Database, TableName, Property>>
-    : Operator extends Contains
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends ContainedBy
-    ? Array<GetValueFromNestedProps<Database, TableName, Property>>
-    : Operator extends RangeGt
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends RangeLt
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends RangeGte
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends RangeLte
-    ? GetValueFromNestedProps<Database, TableName, Property>
-    : Operator extends TextSearch
-    ? string
-    : Operator extends Not
-    ? {
-        [k in Exclude<Operators, Not>]?: GetOperatorOperation<
-          Database,
-          TableName,
-          Property,
-          k
-        >;
-      }
-    : Operator extends Is
-    ? boolean | null
-    : never;
+      ? GetValueFromNestedProps<Database, TableName, Property>
+      : Operator extends Gt
+        ? GetValueFromNestedProps<Database, TableName, Property>
+        : Operator extends Lte
+          ? GetValueFromNestedProps<Database, TableName, Property>
+          : Operator extends Gte
+            ? GetValueFromNestedProps<Database, TableName, Property>
+            : Operator extends Like
+              ? string
+              : Operator extends Ilike
+                ? string
+                : Operator extends In
+                  ? Array<
+                      GetValueFromNestedProps<Database, TableName, Property>
+                    >
+                  : Operator extends Contains
+                    ? GetValueFromNestedProps<Database, TableName, Property>
+                    : Operator extends ContainedBy
+                      ? Array<
+                          GetValueFromNestedProps<Database, TableName, Property>
+                        >
+                      : Operator extends RangeGt
+                        ? GetValueFromNestedProps<Database, TableName, Property>
+                        : Operator extends RangeLt
+                          ? GetValueFromNestedProps<
+                              Database,
+                              TableName,
+                              Property
+                            >
+                          : Operator extends RangeGte
+                            ? GetValueFromNestedProps<
+                                Database,
+                                TableName,
+                                Property
+                              >
+                            : Operator extends RangeLte
+                              ? GetValueFromNestedProps<
+                                  Database,
+                                  TableName,
+                                  Property
+                                >
+                              : Operator extends TextSearch
+                                ? string
+                                : Operator extends Not
+                                  ? {
+                                      [k in Exclude<
+                                        Operators,
+                                        Not
+                                      >]?: GetOperatorOperation<
+                                        Database,
+                                        TableName,
+                                        Property,
+                                        k
+                                      >;
+                                    }
+                                  : Operator extends Is
+                                    ? boolean | null
+                                    : never;
 
   export type FilterOperation<
     Database extends GenericDatabase,
@@ -307,23 +326,23 @@ export namespace DataLoader {
   > = Selection extends StarOperator
     ? Row<Database, TableName>
     : Selection extends string
-    ? QueryData<
-        PostgrestFilterBuilder<
-          Database['public'],
-          Row<Database, TableName>,
-          GetResult<
+      ? QueryData<
+          PostgrestFilterBuilder<
             Database['public'],
             Row<Database, TableName>,
-            TableName,
-            Relationships<Database, TableName>,
-            Selection
-          >,
-          Relationships<Database, TableName>
+            GetResult<
+              Database['public'],
+              Row<Database, TableName>,
+              TableName,
+              Relationships<Database, TableName>,
+              Selection
+            >,
+            Relationships<Database, TableName>
+          >
         >
-      >
-    : Selection extends Array<SelectionFields<Database, TableName>>
-    ? MappedField<Database, TableName, Selection[number]>
-    : never;
+      : Selection extends Array<SelectionFields<Database, TableName>>
+        ? MappedField<Database, TableName, Selection[number]>
+        : never;
 
   export type Filter<
     Database extends GenericDatabase,

@@ -4,12 +4,11 @@ import { DataLoader } from './data-loader-types';
 /**
  * Builds a SQL query string for Postgrest based on the specified select parameter.
  */
-export function buildPostgrestQuery<Client extends SupabaseClient<DataLoader.GenericDatabase>,
-  TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>>(
-  select: DataLoader.Query<
-    DataLoader.ExtractDatabase<Client>,
-    TableName
-  >,
+export function buildPostgrestQuery<
+  Client extends SupabaseClient<DataLoader.GenericDatabase>,
+  TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
+>(
+  select: DataLoader.Query<DataLoader.ExtractDatabase<Client>, TableName>,
   defaultSelect: string = '*',
 ) {
   if (!select) {

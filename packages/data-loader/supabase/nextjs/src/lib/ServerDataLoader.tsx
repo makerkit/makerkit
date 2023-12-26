@@ -93,8 +93,8 @@ export async function ServerDataLoader<
       ? Array.isArray(data)
         ? data.map(objectToCamel)
         : data
-        ? objectToCamel(data)
-        : undefined
+          ? objectToCamel(data)
+          : undefined
       : data
   ) as ReturnData<
     DataLoader.ExtractDatabase<Client>,

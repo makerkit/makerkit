@@ -5,7 +5,5 @@ export default defineConfig({
   root: __dirname,
   cacheDir: '../../node_modules/.vite/packages/test-utils',
 
-  plugins: [
-    nxViteTsPaths()
-  ],
+  plugins: [nxViteTsPaths()],
 });

@@ -1,0 +1,22 @@
+{
+  "name": "@makerkit/data-loader-supabase-remix",
+  "version": "0.0.1",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "dependencies": {
+    "ts-case-convert": "^2.0.6",
+    "@makerkit/data-loader-supabase-core": "0.0.3"
+  },
+  "peerDependencies": {
+    "next": ">=13.4.0",
+    "@tanstack/react-query": ">=5.0.0",
+    "react": ">=18.0.0",
+    "@supabase/supabase-js": ">=2.0.0"
+  },
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./index.js"
+    }
+  }
+}

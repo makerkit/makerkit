@@ -1,21 +1,32 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, renderHook, waitFor } from '@testing-library/react';
 import { createSupabaseClient } from '@makerkit/test-utils';
 import { ClientDataLoader } from './ClientDataLoader';
 import { useSupabaseQuery } from './use-supabase-query';
 
-vi.mock('next/navigation', () => ({
-  redirect: vi.fn(),
-  useRouter: vi.fn(),
+vi.mock('@remix-run/react', () => ({
+  useSearchParams: () => [new Map(), vi.fn()],
 }));
+
+const createWrapper = () => {
+  const queryClient = new QueryClient();
+  return ({ children }: React.PropsWithChildren) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+};
 
 test('Fetch a full table as an authed user', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-    }),
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+      }),
+    {
+      wrapper: createWrapper(),
+    },
   );
 
   await waitFor(() => {
@@ -36,12 +47,16 @@ test('Fetch a full table as an authed user', async (ctx) => {
 test('Fetch a full table as an anon user', async (ctx) => {
   const client = await createSupabaseClient({ auth: false });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['name'],
-    }),
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['name'],
+      }),
+    {
+      wrapper: createWrapper(),
+    },
   );
 
   await waitFor(() => {
@@ -54,12 +69,16 @@ test('Fetch a full table as an anon user', async (ctx) => {
 test('Fetch a partial table', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'name'],
-    }),
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'name'],
+      }),
+    {
+      wrapper: createWrapper(),
+    },
   );
 
   await waitFor(() => {
@@ -77,17 +96,21 @@ test('Fetch a partial table', async (ctx) => {
 test('Fetch a partial table with a join', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'name', 'user_id.onboarded', 'user_id.display_name'],
-      where: {
-        user_id: {
-          eq: '5ebd5119-7b9a-4722-9463-e945878db095',
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'name', 'user_id.onboarded', 'user_id.display_name'],
+        where: {
+          user_id: {
+            eq: '5ebd5119-7b9a-4722-9463-e945878db095',
+          },
         },
-      },
-    }),
+      }),
+    {
+      wrapper: createWrapper(),
+    },
   );
 
   await waitFor(() => {
@@ -109,20 +132,24 @@ test('Fetch a partial table with a join', async (ctx) => {
 test('Fetch a partial table with text filter', async () => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'name'],
-      where: {
-        user_id: {
-          eq: '5ebd5119-7b9a-4722-9463-e945878db095',
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'name'],
+        where: {
+          user_id: {
+            eq: '5ebd5119-7b9a-4722-9463-e945878db095',
+          },
+          name: {
+            textSearch: "'SDK'",
+          },
         },
-        name: {
-          textSearch: "'SDK'",
-        },
-      },
-    }),
+      }),
+    {
+      wrapper: createWrapper(),
+    },
   );
 
   await waitFor(() => {
@@ -140,18 +167,22 @@ test('Fetch a partial table with text filter', async () => {
 test('Fetch a partial table with range filter', async () => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'name'],
-      where: {
-        id: {
-          gte: 0,
-          lte: 3,
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'name'],
+        where: {
+          id: {
+            gte: 0,
+            lte: 3,
+          },
         },
-      },
-    }),
+      }),
+    {
+      wrapper: createWrapper(),
+    },
   );
 
   await waitFor(() => {
@@ -183,6 +214,9 @@ test('Fetch a single item with ClientDataLoader', async (ctx) => {
         );
       }}
     </ClientDataLoader>,
+    {
+      wrapper: createWrapper(),
+    },
   );
 
   await vi.waitFor(() => {
