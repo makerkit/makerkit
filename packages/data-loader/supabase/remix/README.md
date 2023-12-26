@@ -45,7 +45,7 @@ Let's see how to use the Data Loader SDK.
 Use the `ClientDataLoader` components to fetch data from Supabase.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-remix';
 ```
 
 These are ideal when you want to fetch the data in both the server and the client.
@@ -58,7 +58,7 @@ Alternatively, you can use a **React Hook** - which can only be used in React Cl
 
 ```tsx
 import useSupabase from '~/core/supabase/use-supabase';
-import { useSupabaseQuery } from '@makerkit/data-loader-supabase-nextjs';
+import { useSupabaseQuery } from '@makerkit/data-loader-supabase-remix';
 
 function OrganizationsTable() {
   const client = useSupabase();
@@ -250,7 +250,7 @@ import { ClientDataLoader } from '@makerkit/data-loader-supabase-remix';
 We can also use other operators - e.g. `in` to filter the organizations by their id - i.e. to fetch only the organizations with the ids `1`, `2` and `3`.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-remix';
 
 <ClientDataLoader
   client={client} // the Supabase Client
