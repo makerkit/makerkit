@@ -1,0 +1,10 @@
+{
+  "name": "@makerkit/qstash",
+  "version": "0.0.1",
+  "dependencies": {
+    "@upstash/qstash": ">=2.0.0"
+  },
+  "main": "./index.js",
+  "module": "./index.mjs",
+  "typings": "./index.d.ts"
+}

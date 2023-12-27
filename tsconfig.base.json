@@ -24,6 +24,7 @@
       "@makerkit/data-loader/supabase/remix": [
         "packages/data-loader/supabase/remix/src/index.ts"
       ],
+      "@makerkit/qstash": ["packages/qstash/src/index.ts"],
       "@makerkit/test-utils": ["packages/test-utils/src/index.ts"],
       "database.types": ["supabase/database.types.ts"]
     }
