@@ -158,8 +158,9 @@ export namespace DataLoader {
     Database extends GenericDatabase,
     TableName extends keyof Tables<Database>,
   > =
-    // | string TODO: enable when joins fixed in postgrest-js
-    StarOperator | TableSelection<Database, TableName>;
+    string |
+    StarOperator |
+    TableSelection<Database, TableName>;
 
   export type CountType = 'exact' | 'estimated';
 

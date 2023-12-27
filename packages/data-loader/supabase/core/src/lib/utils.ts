@@ -9,13 +9,13 @@ export function buildPostgrestQuery<
   TableName extends keyof DataLoader.Tables<DataLoader.ExtractDatabase<Client>>,
 >(
   select: DataLoader.Query<DataLoader.ExtractDatabase<Client>, TableName>,
-  defaultSelect: string = '*',
+  defaultSelect: DataLoader.StarOperator = '*',
 ) {
   if (!select) {
     return defaultSelect;
   }
 
-  let selectString: string = defaultSelect;
+  let selectString: string;
 
   if (Array.isArray(select)) {
     const selectedProperties = select as Array<string>;
@@ -36,7 +36,7 @@ export function buildPostgrestQuery<
     }
 
     for (const [table, columns] of Array.from(joins.entries())) {
-      value.push(`${table} (${columns.join(',')})`);
+      value.push(`${table} !inner (${columns.join(',')})`);
     }
 
     selectString = value.join(',');

@@ -1,14 +1,14 @@
 {
   "name": "@makerkit/data-loader-supabase-remix",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "./index.js",
   "types": "./index.d.ts",
   "dependencies": {
     "@makerkit/data-loader-supabase-core": "0.0.3"
   },
   "peerDependencies": {
-    "next": ">=13.4.0",
     "@tanstack/react-query": ">=5.0.0",
+    "next": ">=13.4.0",
     "react": ">=18.0.0",
     "@supabase/supabase-js": ">=2.0.0"
   },

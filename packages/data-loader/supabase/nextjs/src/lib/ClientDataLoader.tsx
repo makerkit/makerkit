@@ -2,8 +2,10 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { DataLoader } from '@makerkit/data-loader-supabase-core';
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { DataLoader } from '@makerkit/data-loader-supabase-core';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SWRConfiguration } from 'swr';
+
 import { useSupabaseQuery } from './use-supabase-query';
 
 const PAGE_SIZE = 10;
@@ -19,6 +21,17 @@ interface DataLoaderProps<
   CamelCase extends boolean = false,
 > extends DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase> {
   client: Client;
+
+  config?: SWRConfiguration<{
+    data: DataLoader.TransformData<
+      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+      CamelCase,
+      Single
+    >;
+
+    count: number;
+    error: Error | null;
+  }, Error | null>
 
   children: (props: {
     result: {

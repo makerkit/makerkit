@@ -1,4 +1,4 @@
-import useQuery from 'swr';
+import useQuery, { SWRConfiguration } from 'swr';
 
 import {
   DataLoader,
@@ -22,7 +22,18 @@ export function useSupabaseQuery<
   Single extends boolean = false,
   CamelCase extends boolean = false,
 >(
-  props: DataLoader.DataLoaderProps<Client, TableName, Selection, Single, CamelCase>,
+  props: DataLoader.DataLoaderProps<Client, TableName, Selection, Single, CamelCase> & {
+    config?: SWRConfiguration<{
+      data: DataLoader.TransformData<
+        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
+        CamelCase,
+        Single
+      >;
+
+      count: number;
+      error: Error | null;
+    }, Error | null>;
+  },
 ): {
   data: DataLoader.TransformData<
     DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
@@ -51,9 +62,8 @@ export function useSupabaseQuery<
       Single
     >;
     count: number;
-  }>(cacheKey, () => {
-    return fetchDataFromSupabase(props);
-  });
+    error: Error | null;
+  }>(cacheKey, () => fetchDataFromSupabase(props), props.config ?? {});
 
   if (!data) {
     return {

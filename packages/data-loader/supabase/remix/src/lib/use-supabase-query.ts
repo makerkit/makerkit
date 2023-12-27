@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryOptions } from '@tanstack/react-query';
+
 import {
   DataLoader,
   fetchDataFromSupabase,
@@ -19,19 +20,28 @@ export function useSupabaseQuery<
     TableName
   > = DataLoader.StarOperator,
   Single extends boolean = false,
-  CamelCase extends boolean = false
+  CamelCase extends boolean = false,
 >(
-  props: DataLoader.DataLoaderProps<Client, TableName, Selection, Single, CamelCase>,
-): {
-  data: DataLoader.TransformData<
-    DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
-    CamelCase,
-    Single
-  >;
-  count: number;
-  error: Error | null;
-  isLoading: boolean;
-} {
+  props: DataLoader.DataLoaderProps<Client, TableName, Selection, Single, CamelCase> & {
+    config?: Omit<UseQueryOptions<{
+      data: DataLoader.TransformData<
+        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
+        CamelCase,
+        Single
+      >;
+      count: number;
+      error: Error | null;
+    }, Error, {
+      data: DataLoader.TransformData<
+        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
+        CamelCase,
+        Single
+      >;
+      count: number;
+      error: Error | null;
+    }>, 'queryFn' | 'queryKey'>
+  },
+) {
   const queryKey = [
     props.table,
     props.select ?? '*',
@@ -43,14 +53,8 @@ export function useSupabaseQuery<
     props.sort,
   ].filter(Boolean);
 
-  const { data, error, isLoading } = useQuery<{
-    data: DataLoader.TransformData<
-      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
-      CamelCase,
-      Single
-    >;
-    count: number;
-  }>({
+  const { data, error, isLoading } = useQuery({
+    ...(props.config ?? {}),
     queryKey,
     queryFn: () =>
       fetchDataFromSupabase<Client, TableName, Selection, Single, CamelCase>(props),

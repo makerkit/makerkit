@@ -174,13 +174,22 @@ Required:
 
 Optional:
 
-- `select` - the columns to fetch listed as an array. You can also use first-level joins - e.g. `['id', 'name', 'organization_id.name']`. The `*` wildcard is also supported - as in `'*'` (not an array). In this case, all the columns will be fetched.
+- `select` - the columns to fetch listed as an array, a string, or the star operator [`*`]. You can also use first-level joins - e.g. `['id', 'name', 'organization_id.name']`. The `*` wildcard is also supported - as in `'*'` (not an array). In this case, all the columns will be fetched.
 - `where` - the where clause to use to filter the data. This will change based on the table you're fetching data from.
 - `sort` - the order clause to use to order the data. This will change based on the table you're fetching data from.
 - `page` - the page to use to paginate the data.
 - `limit` - the limit clause to use to limit the data - i.e. the page size.
 - `single` - whether to return a single object or an array of objects. This is useful when you're fetching a single object - e.g. a user by its id. By default, just like the Supabase JS Client, it returns an array of objects. Unlike the Supabase JS Client, it will not throw an error when 0 or many objects are returned.
 - `count` - the count type to use to count the data. You can use either `exact` or `estimated`. By default, it uses `exact`.
+
+#### Select
+
+The `select` property accepts the following values:
+
+1. **Array**: An array of strings - e.g. `['id', 'name']`. This is type-safe and autocompleted - up to the first-level joins.
+2. **Postgrest.JS DSL**: A string accepted by [PostgREST.js](https://github.com/supabase/postgrest-js) - e.g. `id, name, user_id (name)`. This is not type-safe and not autocompleted - but it's more flexible as you can nest joins as you wish. This relies on PostgREST.js to parse the string and compute the output, so it also inherits the limitations and bugs of PostgREST.js.
+3. **The star operator** - to select the whole row, you can pass `*`.
+4. **Omit it completely** - to select the whole row, either pass `*` or nothing as this is the default value.
 
 ### ServerDataLoader
 
@@ -509,3 +518,39 @@ function Component() {
 ```
 
 The TypeScript types are also updated accordingly - so you can be sure that the data you're fetching is the data you're expecting.
+
+### Provide the SWR configuration
+
+To offer you more flexibility, you can also pass the `useSupabaseQuery` [SWR](https://swr.vercel.app/) configuration using the `config` property.
+
+```tsx
+import { useSupabaseQuery } from '@makerkit/data-loader-supabase-nextjs';
+
+const { data, isLoading, error } = useSupabaseQuery({
+  client,
+  table: 'organizations',
+  select: '*',
+  config: {
+    refreshWhenOffline: false,
+    revalidateOnMount: false,
+  },
+});
+```
+
+You can check out the [SWR documentation](https://swr.vercel.app/docs/api) to see all the available options.
+
+You an also pass the `useSupabaseQuery` React Query configuration to the `ClientDataLoader` component.
+
+```tsx
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+
+<ClientDataLoader
+  client={client}
+  table="organizations"
+  select="*"
+  config={{
+    refreshWhenOffline: false,
+    revalidateOnMount: false,
+  }}
+/>;
+```

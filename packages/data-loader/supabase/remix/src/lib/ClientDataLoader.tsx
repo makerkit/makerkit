@@ -1,7 +1,10 @@
 import { useSearchParams } from '@remix-run/react';
 import { useCallback } from 'react';
-import { DataLoader } from '@makerkit/data-loader-supabase-core';
-import { SupabaseClient } from '@supabase/supabase-js';
+
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { UseQueryOptions } from '@tanstack/react-query';
+import type { DataLoader } from '@makerkit/data-loader-supabase-core';
+
 import { useSupabaseQuery } from './use-supabase-query';
 
 const PAGE_SIZE = 10;
@@ -17,6 +20,24 @@ interface DataLoaderProps<
   CamelCase extends boolean = false,
 > extends DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase> {
   client: Client;
+
+  config?: Omit<UseQueryOptions<{
+    data: DataLoader.TransformData<
+      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+      CamelCase,
+      Single
+    >;
+    count: number;
+    error: Error | null;
+  }, Error, {
+    data: DataLoader.TransformData<
+      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+      CamelCase,
+      Single
+    >;
+    count: number;
+    error: Error | null;
+  }>, 'queryFn' | 'queryKey'>;
 
   children: (props: {
     result: {

@@ -11,7 +11,8 @@
     "format": "nx format:write --all",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
-    "typegen": "supabase gen types typescript --local > supabase/database.types.ts"
+    "typegen": "supabase gen types typescript --local > supabase/database.types.ts",
+    "healthcheck": "nx run-many --target=typecheck,lint,test --all"
   },
   "repository": {
     "type": "git",
