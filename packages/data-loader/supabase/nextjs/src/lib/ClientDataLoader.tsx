@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DataLoader } from '@makerkit/data-loader-supabase-core';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { SWRConfiguration } from 'swr';
+import type { UseQueryOptions } from '@tanstack/react-query';
 
 import { useSupabaseQuery } from './use-supabase-query';
 
@@ -22,16 +22,23 @@ interface DataLoaderProps<
 > extends DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase> {
   client: Client;
 
-  config?: SWRConfiguration<{
+  config?: Omit<UseQueryOptions<{
     data: DataLoader.TransformData<
       DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
       CamelCase,
       Single
     >;
-
     count: number;
     error: Error | null;
-  }, Error | null>
+  }, Error, {
+    data: DataLoader.TransformData<
+      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+      CamelCase,
+      Single
+    >;
+    count: number;
+    error: Error | null;
+  }>, 'queryFn' | 'queryKey'>;
 
   children: (props: {
     result: {

@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/data-loader-supabase-nextjs",
-  "version": "0.0.9",
+  "version": "1.0.0",
   "main": "./index.js",
   "dependencies": {
     "@makerkit/data-loader-supabase-core": "0.0.7"
@@ -8,7 +8,7 @@
   "peerDependencies": {
     "@supabase/supabase-js": ">=2.0.0",
     "next": ">=13.4.0",
-    "swr": ">=2.0.0",
+    "@tanstack/react-query": ">=5.0.0",
     "react": ">=18.0.0"
   },
   "exports": {

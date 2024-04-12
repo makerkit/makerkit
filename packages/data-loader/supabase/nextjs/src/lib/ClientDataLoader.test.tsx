@@ -2,11 +2,20 @@ import { render, renderHook, waitFor } from '@testing-library/react';
 import { createSupabaseClient } from '@makerkit/test-utils';
 import { ClientDataLoader } from './ClientDataLoader';
 import { useSupabaseQuery } from './use-supabase-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   useRouter: vi.fn(),
 }));
+
+const createWrapper = () => {
+  const queryClient = new QueryClient();
+
+  return ({ children }: React.PropsWithChildren) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+};
 
 test('Fetch a full table as an authed user', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
@@ -16,6 +25,9 @@ test('Fetch a full table as an authed user', async (ctx) => {
       client,
       table: 'tasks',
     }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 
   await waitFor(() => {
@@ -42,6 +54,9 @@ test('Fetch a full table as an anon user', async (ctx) => {
       table: 'tasks',
       select: ['name'],
     }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 
   await waitFor(() => {
@@ -60,6 +75,9 @@ test('Fetch a partial table', async (ctx) => {
       table: 'tasks',
       select: ['id', 'name'],
     }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 
   await waitFor(() => {
@@ -71,6 +89,9 @@ test('Fetch a partial table', async (ctx) => {
       id: 3,
       name: 'Test the SDK',
     },
+    {
+      wrapper: createWrapper(),
+    }
   ]);
 });
 
@@ -84,6 +105,9 @@ test('Fetch a camelCase table', async (ctx) => {
       select: ['id', 'user_id'],
       camelCase: true,
     }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 
   await waitFor(() => {
@@ -109,6 +133,9 @@ test('Fetch a single item camelCase table', async (ctx) => {
       camelCase: true,
       single: true,
     }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 
   await waitFor(() => {
@@ -137,6 +164,9 @@ test('Fetch a partial table with a join', async (ctx) => {
         },
       },
     }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 
   await waitFor(() => {
@@ -172,6 +202,9 @@ test('Fetch a partial table with text filter', async () => {
         },
       },
     }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 
   await waitFor(() => {
@@ -201,6 +234,9 @@ test('Fetch a partial table with range filter', async () => {
         },
       },
     }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 
   await waitFor(() => {
@@ -217,21 +253,24 @@ test('Fetch a partial table with range filter', async () => {
 
 test('Fetch a single item with ClientDataLoader', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
+  const Wrapper = createWrapper();
 
   const page = render(
-    <ClientDataLoader client={client} table={'tasks'} select={['id']} single>
-      {(props) => {
-        return (
-          <>
-            <span data-testid={'task'} data-value={props.result.data?.id} />
-            <span
-              data-testid={'loading'}
-              data-value={props.isLoading.toString()}
-            />
-          </>
-        );
-      }}
-    </ClientDataLoader>,
+    <Wrapper>
+      <ClientDataLoader client={client} table={'tasks'} select={['id']} single>
+        {(props) => {
+          return (
+            <>
+              <span data-testid={'task'} data-value={props.result.data?.id} />
+              <span
+                data-testid={'loading'}
+                data-value={props.isLoading.toString()}
+              />
+            </>
+          );
+        }}
+      </ClientDataLoader>
+    </Wrapper>,
   );
 
   await vi.waitFor(() => {

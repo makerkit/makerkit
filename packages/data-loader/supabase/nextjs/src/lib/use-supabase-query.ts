@@ -1,4 +1,4 @@
-import useQuery, { SWRConfiguration } from 'swr';
+import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 
 import {
   DataLoader,
@@ -23,28 +23,26 @@ export function useSupabaseQuery<
   CamelCase extends boolean = false,
 >(
   props: DataLoader.DataLoaderProps<Client, TableName, Selection, Single, CamelCase> & {
-    config?: SWRConfiguration<{
+    config?: Omit<UseQueryOptions<{
       data: DataLoader.TransformData<
         DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
         CamelCase,
         Single
       >;
-
       count: number;
       error: Error | null;
-    }, Error | null>;
+    }, Error, {
+      data: DataLoader.TransformData<
+        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
+        CamelCase,
+        Single
+      >;
+      count: number;
+      error: Error | null;
+    }>, 'queryFn' | 'queryKey'>
   },
-): {
-  data: DataLoader.TransformData<
-    DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
-    CamelCase,
-    Single
-  >;
-  count: number;
-  error: Error | null;
-  isLoading: boolean;
-} {
-  const cacheKey = [
+) {
+  const queryKey = [
     props.table,
     props.select ?? '*',
     props.where,
@@ -55,15 +53,12 @@ export function useSupabaseQuery<
     props.sort,
   ].filter(Boolean);
 
-  const { data, error, isLoading } = useQuery<{
-    data: DataLoader.TransformData<
-      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
-      CamelCase,
-      Single
-    >;
-    count: number;
-    error: Error | null;
-  }>(cacheKey, () => fetchDataFromSupabase(props), props.config ?? {});
+  const { data, error, isLoading } = useQuery({
+    ...(props.config ?? {}),
+    queryKey,
+    queryFn: () =>
+      fetchDataFromSupabase<Client, TableName, Selection, Single, CamelCase>(props),
+  });
 
   if (!data) {
     return {
