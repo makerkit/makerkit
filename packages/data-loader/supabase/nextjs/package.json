@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/data-loader-supabase-nextjs",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "./index.js",
   "dependencies": {
     "@makerkit/data-loader-supabase-core": "0.0.7"
@@ -16,6 +16,11 @@
       "types": "./index.d.ts",
       "import": "./index.mjs",
       "require": "./index.js"
+    },
+    "./client": {
+      "types": "./client.d.ts",
+      "import": "./client.mjs",
+      "require": "./client.js"
     }
   }
 }

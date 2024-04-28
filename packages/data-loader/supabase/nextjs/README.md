@@ -36,7 +36,7 @@ These stream compiled JSX directly to the browser and are ideal when you want to
 With **React Client Components** - i.e. to be used in SPA/SSR:
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 ```
 
 These are ideal when you want to fetch the data in both the server and the client.
@@ -47,7 +47,7 @@ Alternatively, you can use a **React Hook** - which can only be used in React Cl
 
 ```tsx
 import useSupabase from '~/core/supabase/use-supabase';
-import { useSupabaseQuery } from '@makerkit/data-loader-supabase-nextjs';
+import { useSupabaseQuery } from '@makerkit/data-loader-supabase-nextjs/client';
 
 function OrganizationsTable() {
   const client = useSupabase();
@@ -265,7 +265,7 @@ We will build a simple table that lists all the organizations the user can read.
 
 ```tsx
 import useSupabase from '~/core/supabase/use-supabase';
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 interface SearchParams {
   page: string;
@@ -325,7 +325,7 @@ Let's see how to use the `where` property. We can use nearly all the supported o
 Below, we pass `where` to the `ClientDataLoader` component to filter the organizations by their name. We use the `textSearch` operator to search for the word `supabase` in the `name` column.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader
   client={client} // the Supabase Client
@@ -342,7 +342,7 @@ import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
 We can also use other operators - e.g. `in` to filter the organizations by their id - i.e. to fetch only the organizations with the ids `1`, `2` and `3`.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader
   client={client} // the Supabase Client
@@ -359,7 +359,7 @@ import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
 Alternatively, we can use the `eq` operator to filter the organizations by their id - i.e. to fetch only the organizations with the id `1`.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader
   client={client}
@@ -380,7 +380,7 @@ Let's see how to use the `select` property.
 Below, we pass `select` to the `ClientDataLoader` component to select only the `id` and `name` columns.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader
   client={client}
@@ -392,7 +392,7 @@ import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
 Let's assume we want to fetch the organization name of the `tasks` table, which has a `organization_id` column that references the `organizations` table. We can use first-level joins to fetch the organization name.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader
   client={client}
@@ -425,7 +425,7 @@ The data returned will be an array of objects with the following structure:
 The `*` wildcard is also supported - as in `*` (not an array). In this case, all the columns will be fetched.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader client={client} table="organizations" select="*" />;
 ```
@@ -433,7 +433,7 @@ import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
 You don't have to provide it - as it's the default value. The following is equivalent to the previous example.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader client={client} table="organizations" />;
 ```
@@ -445,7 +445,7 @@ Let's see how to use the `single` property. We can use this property to unwrap t
 Below, we pass `single` to the `ClientDataLoader` component to fetch a single organization by its id.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader
   table="organizations"
@@ -494,7 +494,7 @@ Assuming the `organizations` table has a `organization_name` column, the data re
 Check out the following example:
 
 ```tsx
-import { ServerDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ServerDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 function Component() {
   return (
@@ -524,7 +524,7 @@ The TypeScript types are also updated accordingly - so you can be sure that the 
 To offer you more flexibility, you can also pass the `useSupabaseQuery` [SWR](https://swr.vercel.app/) configuration using the `config` property.
 
 ```tsx
-import { useSupabaseQuery } from '@makerkit/data-loader-supabase-nextjs';
+import { useSupabaseQuery } from '@makerkit/data-loader-supabase-nextjs/client';
 
 const { data, isLoading, error } = useSupabaseQuery({
   client,
@@ -542,7 +542,7 @@ You can check out the [SWR documentation](https://swr.vercel.app/docs/api) to se
 You an also pass the `useSupabaseQuery` React Query configuration to the `ClientDataLoader` component.
 
 ```tsx
-import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs';
+import { ClientDataLoader } from '@makerkit/data-loader-supabase-nextjs/client';
 
 <ClientDataLoader
   client={client}

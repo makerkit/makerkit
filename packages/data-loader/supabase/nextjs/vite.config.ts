@@ -32,7 +32,10 @@ export default defineConfig({
     },
     lib: {
       // Could also be a dictionary or array of multiple entry points.
-      entry: 'src/index.ts',
+      entry: {
+        index: 'src/index.ts',
+        client: 'src/client.ts',
+      },
       name: 'data-loader-supabase-nextjs',
       fileName: 'index',
       // Change this to the formats you want to support.
