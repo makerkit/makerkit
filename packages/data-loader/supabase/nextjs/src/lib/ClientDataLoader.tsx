@@ -84,6 +84,7 @@ export function ClientDataLoader<
   >(props);
 
   const onPageChange = useRouterParamsChange();
+
   const pageSize = props.limit ?? PAGE_SIZE;
   const pageCount = Math.ceil(count / (props.limit ?? PAGE_SIZE));
 

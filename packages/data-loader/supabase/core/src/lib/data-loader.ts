@@ -5,8 +5,8 @@ import { DataLoader } from './data-loader-types';
 import { buildPostgrestQuery } from './utils';
 
 /**
- * Builds a query for a Supabase data provider.
- *
+ * @name fetchDataFromSupabase
+ * @description Builds a query for a Supabase data provider.
  */
 export async function fetchDataFromSupabase<
   Client extends SupabaseClient<DataLoader.GenericDatabase>,
@@ -41,7 +41,7 @@ export async function fetchDataFromSupabase<
     sort,
     select = '*',
     page = 1,
-    limit = 8,
+    limit = 10,
     count = 'exact',
   } = props;
 

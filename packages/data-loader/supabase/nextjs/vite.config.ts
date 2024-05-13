@@ -48,7 +48,7 @@ export default defineConfig({
         'react-dom',
         'react/jsx-runtime',
         'swr',
-        '@tanstack/react-query',
+        /@tanstack\/(.)*/,
         /@supabase\/(.)*/,
         /^next(.*)/,
         '@makerkit/data-loader-supabase-core',
