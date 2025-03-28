@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/data-loader-supabase-core",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "main": "./index.js",
   "dependencies": {
     "ts-case-convert": "^2.0.6"

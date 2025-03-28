@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/data-loader-supabase-nextjs",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "main": "./index.js",
   "dependencies": {
     "@makerkit/data-loader-supabase-core": "0.0.8"

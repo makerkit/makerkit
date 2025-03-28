@@ -1,8 +1,11 @@
-import { SupabaseClient } from '@supabase/supabase-js';
 import { objectToCamel } from 'ts-case-convert';
-
+import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
+import { GetResult } from '@supabase/postgrest-js/dist/module/select-query-parser';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { DataLoader } from './data-loader-types';
 import { buildPostgrestQuery } from './utils';
+
+import Relationships = DataLoader.Relationships;
 
 /**
  * @name fetchDataFromSupabase
@@ -16,14 +19,18 @@ export async function fetchDataFromSupabase<
     TableName
   > = DataLoader.StarOperator,
   Single extends boolean = false,
-  CamelCase extends boolean = false
->(props: DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase>) {
+  CamelCase extends boolean = false,
+>(
+  props: DataLoader.DataLoaderProps<
+    Client,
+    TableName,
+    Query,
+    Single,
+    CamelCase
+  >,
+) {
   type Data = DataLoader.TransformData<
-    DataLoader.Data<
-      DataLoader.ExtractDatabase<Client>,
-      TableName,
-      Query
-    >,
+    DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
     CamelCase,
     Single
   >;
@@ -49,162 +56,181 @@ export async function fetchDataFromSupabase<
   const selectString = buildPostgrestQuery(select);
   const tableRef = client.from(table as string);
 
-  let query = tableRef.select(selectString, {
+  let query: PostgrestFilterBuilder<
+    DataLoader.ExtractDatabase<Client>['public'],
+    DataLoader.Row<DataLoader.ExtractDatabase<Client>, TableName>,
+    | GetResult<
+        DataLoader.ExtractDatabase<Client>['public'],
+        DataLoader.Row<DataLoader.ExtractDatabase<Client>, TableName>,
+        TableName,
+        Relationships<DataLoader.ExtractDatabase<Client>, TableName>,
+        string
+      >
+    | DataLoader.GenericStringError[],
+    Relationships<DataLoader.ExtractDatabase<Client>, TableName>
+  > = tableRef.select(selectString, {
     count: count ?? 'exact',
   });
 
   if (where) {
-    const properties = Object.keys(where) as Array<
-      keyof DataLoader.Row<DataLoader.ExtractDatabase<Client>, TableName>
-    >;
+    if (typeof where !== 'function') {
+      const properties = Object.keys(where) as Array<
+        keyof DataLoader.Row<DataLoader.ExtractDatabase<Client>, TableName>
+      >;
 
-    for (const property of properties) {
-      const operatorMap = where[property];
+      for (const property of properties) {
+        const operatorMap = where[property];
 
-      if (!operatorMap) {
-        continue;
-      }
+        if (!operatorMap) {
+          continue;
+        }
 
-      const operators = Object.keys(
-        operatorMap ?? {},
-      ) as DataLoader.Operators[];
+        const operators = Object.keys(
+          operatorMap ?? {},
+        ) as DataLoader.Operators[];
 
-      for (const operator of operators) {
-        // we need to cast this to a string
-        const propertyName = property as string;
+        for (const operator of operators) {
+          // we need to cast this to a string
+          const propertyName = property as string;
 
-        switch (operator) {
-          case 'eq': {
-            const value = operatorMap[operator];
-            if (value === undefined || value === null) continue;
+          switch (operator) {
+            case 'eq': {
+              const value = operatorMap[operator];
+              if (value === undefined || value === null) continue;
 
-            query = query.eq(propertyName, value);
+              query = query.eq(propertyName, value);
 
-            break;
-          }
-
-          case 'neq': {
-            const value = operatorMap[operator];
-            if (value === undefined || value === null) continue;
-
-            query = query.neq(propertyName, value);
-
-            break;
-          }
-
-          case 'in': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
-
-            query = query.in(propertyName, value);
-
-            break;
-          }
-
-          case 'like': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
-
-            query = query.like(propertyName, value);
-            break;
-          }
-
-          case 'ilike': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
-
-            query = query.ilike(propertyName, value);
-            break;
-          }
-
-          case 'gt': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
-
-            query = query.gt(propertyName, value);
-            break;
-          }
-
-          case 'lt': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
-
-            query = query.lt(propertyName, value);
-            break;
-          }
-
-          case 'gte': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
-
-            query = query.gte(propertyName, value);
-            break;
-          }
-
-          case 'lte': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
-
-            query = query.lte(propertyName, value);
-            break;
-          }
-
-          case 'textSearch': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
-
-            query = query.textSearch(propertyName, value);
-            break;
-          }
-
-          case 'containedBy': {
-            const value = operatorMap[operator];
-            if (!Array.isArray(value)) continue;
-
-            query = query.containedBy(propertyName, value);
-            break;
-          }
-
-          case 'contains': {
-            const value = operatorMap[operator];
-            if (!Array.isArray(value)) continue;
-
-            query = query.contains(propertyName, value);
-            break;
-          }
-
-          case 'not': {
-            const value = operatorMap[operator] as DataLoader.GetOperatorOperation<
-              DataLoader.ExtractDatabase<Client>,
-              TableName,
-              typeof property,
-              'not'
-            >;
-
-            if (value === undefined) continue;
-
-            for (const key in value) {
-              if (key in value) {
-                const operatorKey = key as keyof typeof value;
-                const operatorValue = value[operatorKey];
-
-                query = query.not(propertyName, key, operatorValue);
-              }
+              break;
             }
 
-            break;
-          }
+            case 'neq': {
+              const value = operatorMap[operator];
+              if (value === undefined || value === null) continue;
 
-          case 'is': {
-            const value = operatorMap[operator];
-            if (value === undefined) continue;
+              query = query.neq(propertyName, value);
 
-            query = query.is(propertyName, value);
+              break;
+            }
 
-            break;
+            case 'in': {
+              const value = operatorMap[operator];
+              if (value === undefined) continue;
+
+              query = query.in(propertyName, value);
+
+              break;
+            }
+
+            case 'like': {
+              const value = operatorMap[operator];
+              if (value === undefined) continue;
+
+              query = query.like(propertyName, value);
+              break;
+            }
+
+            case 'ilike': {
+              const value = operatorMap[operator];
+              if (value === undefined) continue;
+
+              query = query.ilike(propertyName, value);
+              break;
+            }
+
+            case 'gt': {
+              const value = operatorMap[operator];
+              if (value === undefined) continue;
+
+              query = query.gt(propertyName, value);
+              break;
+            }
+
+            case 'lt': {
+              const value = operatorMap[operator];
+              if (value === undefined) continue;
+
+              query = query.lt(propertyName, value);
+              break;
+            }
+
+            case 'gte': {
+              const value = operatorMap[operator];
+              if (value === undefined) continue;
+
+              query = query.gte(propertyName, value);
+              break;
+            }
+
+            case 'lte': {
+              const value = operatorMap[operator];
+              if (value === undefined) continue;
+
+              query = query.lte(propertyName, value);
+              break;
+            }
+
+            case 'textSearch': {
+              const value = operatorMap[operator];
+              if (value === undefined) continue;
+
+              query = query.textSearch(propertyName, value);
+              break;
+            }
+
+            case 'containedBy': {
+              const value = operatorMap[operator];
+              if (!Array.isArray(value)) continue;
+
+              query = query.containedBy(propertyName, value);
+              break;
+            }
+
+            case 'contains': {
+              const value = operatorMap[operator];
+              if (!Array.isArray(value)) continue;
+
+              query = query.contains(propertyName, value);
+              break;
+            }
+
+            case 'not': {
+              const value = operatorMap[
+                operator
+              ] as DataLoader.GetOperatorOperation<
+                DataLoader.ExtractDatabase<Client>,
+                TableName,
+                typeof property,
+                'not'
+              >;
+
+              if (value === undefined) continue;
+
+              for (const key in value) {
+                if (key in value) {
+                  const operatorKey = key as keyof typeof value;
+                  const operatorValue = value[operatorKey];
+
+                  query = query.not(propertyName, key, operatorValue);
+                }
+              }
+
+              break;
+            }
+
+            case 'is': {
+              const value = operatorMap[operator];
+
+              if (value === undefined) continue;
+
+              query = query.is(propertyName, value);
+
+              break;
+            }
           }
         }
       }
+    } else if (typeof where === 'function') {
+      query = where(query);
     }
   }
 
@@ -229,10 +255,9 @@ export async function fetchDataFromSupabase<
     }
   }
 
-
   if (props.single) {
     const response = await query.maybeSingle();
-    const data = transformData((response.data ?? undefined), camelCase);
+    const data = transformData(response.data ?? undefined, camelCase);
 
     return {
       data,
@@ -242,7 +267,7 @@ export async function fetchDataFromSupabase<
   }
 
   const response = await query;
-  const data = transformData((response.data ?? []), camelCase);
+  const data = transformData(response.data ?? [], camelCase);
 
   return {
     data,
@@ -251,9 +276,7 @@ export async function fetchDataFromSupabase<
   } as ReturnData;
 }
 
-function transformData<
-  Data extends object | undefined,
->(
+function transformData<Data extends object | undefined>(
   data: Data | Data[],
   camelCase: boolean,
 ) {

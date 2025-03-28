@@ -1,8 +1,8 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, renderHook, waitFor } from '@testing-library/react';
 import { createSupabaseClient } from '@makerkit/test-utils';
 import { ClientDataLoader } from './ClientDataLoader';
 import { useSupabaseQuery } from './use-supabase-query';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
@@ -20,14 +20,15 @@ const createWrapper = () => {
 test('Fetch a full table as an authed user', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-    }),
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+      }),
     {
       wrapper: createWrapper(),
-    }
+    },
   );
 
   await waitFor(() => {
@@ -48,15 +49,16 @@ test('Fetch a full table as an authed user', async (ctx) => {
 test('Fetch a full table as an anon user', async (ctx) => {
   const client = await createSupabaseClient({ auth: false });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['name'],
-    }),
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['name'],
+      }),
     {
       wrapper: createWrapper(),
-    }
+    },
   );
 
   await waitFor(() => {
@@ -69,15 +71,16 @@ test('Fetch a full table as an anon user', async (ctx) => {
 test('Fetch a partial table', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'name'],
-    }),
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'name'],
+      }),
     {
       wrapper: createWrapper(),
-    }
+    },
   );
 
   await waitFor(() => {
@@ -91,23 +94,24 @@ test('Fetch a partial table', async (ctx) => {
     },
     {
       wrapper: createWrapper(),
-    }
+    },
   ]);
 });
 
 test('Fetch a camelCase table', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'user_id'],
-      camelCase: true,
-    }),
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'user_id'],
+        camelCase: true,
+      }),
     {
       wrapper: createWrapper(),
-    }
+    },
   );
 
   await waitFor(() => {
@@ -117,7 +121,7 @@ test('Fetch a camelCase table', async (ctx) => {
   ctx.expect(response.result.current.data).toEqual([
     {
       id: 3,
-      userId: "5ebd5119-7b9a-4722-9463-e945878db095"
+      userId: '5ebd5119-7b9a-4722-9463-e945878db095',
     },
   ]);
 });
@@ -125,48 +129,48 @@ test('Fetch a camelCase table', async (ctx) => {
 test('Fetch a single item camelCase table', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'user_id'],
-      camelCase: true,
-      single: true,
-    }),
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'user_id'],
+        camelCase: true,
+        single: true,
+      }),
     {
       wrapper: createWrapper(),
-    }
+    },
   );
 
   await waitFor(() => {
     return ctx.expect(response.result.current.isLoading).toEqual(false);
   });
 
-  ctx.expect(response.result.current.data).toEqual(
-    {
-      id: 3,
-      userId: "5ebd5119-7b9a-4722-9463-e945878db095"
-    },
-  );
+  ctx.expect(response.result.current.data).toEqual({
+    id: 3,
+    userId: '5ebd5119-7b9a-4722-9463-e945878db095',
+  });
 });
 
 test('Fetch a partial table with a join', async (ctx) => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'name', 'user_id.onboarded', 'user_id.display_name'],
-      where: {
-        user_id: {
-          eq: '5ebd5119-7b9a-4722-9463-e945878db095',
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'name', 'user_id.onboarded', 'user_id.display_name'],
+        where: {
+          user_id: {
+            eq: '5ebd5119-7b9a-4722-9463-e945878db095',
+          },
         },
-      },
-    }),
+      }),
     {
       wrapper: createWrapper(),
-    }
+    },
   );
 
   await waitFor(() => {
@@ -188,23 +192,24 @@ test('Fetch a partial table with a join', async (ctx) => {
 test('Fetch a partial table with text filter', async () => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'name'],
-      where: {
-        user_id: {
-          eq: '5ebd5119-7b9a-4722-9463-e945878db095',
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'name'],
+        where: {
+          user_id: {
+            eq: '5ebd5119-7b9a-4722-9463-e945878db095',
+          },
+          name: {
+            textSearch: "'SDK'",
+          },
         },
-        name: {
-          textSearch: "'SDK'",
-        },
-      },
-    }),
+      }),
     {
       wrapper: createWrapper(),
-    }
+    },
   );
 
   await waitFor(() => {
@@ -222,21 +227,22 @@ test('Fetch a partial table with text filter', async () => {
 test('Fetch a partial table with range filter', async () => {
   const client = await createSupabaseClient({ auth: true });
 
-  const response = renderHook(() =>
-    useSupabaseQuery({
-      client,
-      table: 'tasks',
-      select: ['id', 'name'],
-      where: {
-        id: {
-          gte: 0,
-          lte: 3,
+  const response = renderHook(
+    () =>
+      useSupabaseQuery({
+        client,
+        table: 'tasks',
+        select: ['id', 'name'],
+        where: {
+          id: {
+            gte: 0,
+            lte: 3,
+          },
         },
-      },
-    }),
+      }),
     {
       wrapper: createWrapper(),
-    }
+    },
   );
 
   await waitFor(() => {
@@ -258,6 +264,45 @@ test('Fetch a single item with ClientDataLoader', async (ctx) => {
   const page = render(
     <Wrapper>
       <ClientDataLoader client={client} table={'tasks'} select={['id']} single>
+        {(props) => {
+          return (
+            <>
+              <span data-testid={'task'} data-value={props.result.data?.id} />
+              <span
+                data-testid={'loading'}
+                data-value={props.isLoading.toString()}
+              />
+            </>
+          );
+        }}
+      </ClientDataLoader>
+    </Wrapper>,
+  );
+
+  await vi.waitFor(() => {
+    return ctx
+      .expect(page.getByTestId('loading').dataset['value']?.trim())
+      .toEqual('false');
+  });
+
+  ctx.expect(page.getByTestId('task').dataset['value']?.trim()).toEqual('3');
+});
+
+test('Use a function in the where clause', async (ctx) => {
+  const client = await createSupabaseClient({ auth: true });
+  const Wrapper = createWrapper();
+
+  const page = render(
+    <Wrapper>
+      <ClientDataLoader
+        client={client}
+        table={'tasks'}
+        select={['id']}
+        single
+        where={(queryBuilder) => {
+          return queryBuilder.eq('id', 3);
+        }}
+      >
         {(props) => {
           return (
             <>

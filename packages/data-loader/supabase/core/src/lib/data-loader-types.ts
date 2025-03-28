@@ -1,13 +1,16 @@
+import type { ObjectToCamel } from 'ts-case-convert/lib/caseConvert';
 import type { PostgrestFilterBuilder } from '@supabase/postgrest-js';
 import type { GetResult } from '@supabase/postgrest-js/dist/module/select-query-parser';
 import type { GenericSchema } from '@supabase/postgrest-js/dist/module/types';
 import type { QueryData, SupabaseClient } from '@supabase/supabase-js';
-import type { ObjectToCamel } from 'ts-case-convert/lib/caseConvert';
 
 export namespace DataLoader {
   export type GenericDatabase = {
     public: GenericSchema;
   };
+
+  type ParserError<Message extends string> = { error: true } & Message;
+  export type GenericStringError = ParserError<'Received a generic string'>;
 
   type Eq = 'eq';
   type Neq = 'neq';
@@ -157,10 +160,7 @@ export namespace DataLoader {
   export type Query<
     Database extends GenericDatabase,
     TableName extends keyof Tables<Database>,
-  > =
-    string |
-    StarOperator |
-    TableSelection<Database, TableName>;
+  > = string | StarOperator | TableSelection<Database, TableName>;
 
   export type CountType = 'exact' | 'estimated';
 
@@ -369,7 +369,35 @@ export namespace DataLoader {
   > {
     client: Client;
     table: TableName;
-    where?: DataLoader.Filter<ExtractDatabase<Client>, TableName>;
+    where?:
+      | DataLoader.Filter<ExtractDatabase<Client>, TableName>
+      | ((
+          query: PostgrestFilterBuilder<
+            ExtractDatabase<Client>['public'],
+            Row<ExtractDatabase<Client>, TableName>,
+            | GetResult<
+                ExtractDatabase<Client>['public'],
+                Row<ExtractDatabase<Client>, TableName>,
+                TableName,
+                Relationships<ExtractDatabase<Client>, TableName>,
+                string
+              >
+            | GenericStringError[],
+            Relationships<ExtractDatabase<Client>, TableName>
+          >,
+        ) => PostgrestFilterBuilder<
+          ExtractDatabase<Client>['public'],
+          Row<ExtractDatabase<Client>, TableName>,
+          | GetResult<
+              ExtractDatabase<Client>['public'],
+              Row<ExtractDatabase<Client>, TableName>,
+              TableName,
+              Relationships<ExtractDatabase<Client>, TableName>,
+              string
+            >
+          | GenericStringError[],
+          Relationships<ExtractDatabase<Client>, TableName>
+        >);
     sort?: DataLoader.SortBy<ExtractDatabase<Client>, TableName>;
     page?: number;
     limit?: number;
@@ -394,5 +422,7 @@ export namespace DataLoader {
     Data extends object | undefined,
     CamelCase extends boolean,
     Single extends boolean,
-  > = CamelCase extends true ? ReturnData<ObjectToCamel<Data>, Single> : ReturnData<Data, Single>;
+  > = CamelCase extends true
+    ? ReturnData<ObjectToCamel<Data>, Single>
+    : ReturnData<Data, Single>;
 }

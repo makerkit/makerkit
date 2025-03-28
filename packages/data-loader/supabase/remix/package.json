@@ -1,9 +1,9 @@
 {
   "name": "@makerkit/data-loader-supabase-remix",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "main": "./index.js",
   "dependencies": {
-    "@makerkit/data-loader-supabase-core": "0.0.7"
+    "@makerkit/data-loader-supabase-core": "0.0.9"
   },
   "peerDependencies": {
     "@tanstack/react-query": ">=5.0.0",
