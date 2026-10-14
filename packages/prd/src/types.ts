@@ -52,6 +52,19 @@ export interface UserStory {
   completedAt?: string;
   verification?: StoryVerification;
   log?: StoryLogEntry[];
+  /**
+   * Where this story is tested: the public entry points (a route, a server
+   * action, a service function) whose behaviour the tests exercise.
+   */
+  testSeams?: string[];
+}
+
+/** A term the team has agreed on, so people and agents use the same words. */
+export interface GlossaryTerm {
+  term: string;
+  definition: string;
+  /** Synonyms that should not be used for this concept. */
+  avoid: string[];
 }
 
 export interface RiskItem {
@@ -174,6 +187,7 @@ export interface StructuredPRD {
   };
 
   decisionLog: DecisionLogEntry[];
+  glossary: GlossaryTerm[];
   agentTaskPackets: AgentTaskPacket[];
   changeLog: string[];
 

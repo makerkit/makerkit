@@ -37,6 +37,18 @@ import {
   GetStoryOutputSchema,
   AddStoryLogInputSchema,
   AddStoryLogOutputSchema,
+  UpdatePrdSectionInputSchema,
+  UpdatePrdSectionOutputSchema,
+  AddDecisionInputSchema,
+  AddDecisionOutputSchema,
+  ResolveOpenQuestionInputSchema,
+  ResolveOpenQuestionOutputSchema,
+  AddGlossaryTermInputSchema,
+  AddGlossaryTermOutputSchema,
+  UpdatePhaseInputSchema,
+  DeletePhaseInputSchema,
+  ReorderPhasesInputSchema,
+  PhasesOutputSchema,
 } from '../schema';
 import {
   DESTRUCTIVE_TOOL,
@@ -414,6 +426,185 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     },
   );
 
+  server.registerTool(
+    'update_prd_section',
+    {
+      title: 'Update a PRD section',
+      description:
+        'Change one section of a PRD after it was created: scope (nonGoals, outOfScope), assumptions, open questions, risks, external dependencies, technical requirements and contracts, global acceptance criteria, constraints, rollout and measurement plans, or the introduction, problem and solution.',
+      inputSchema: UpdatePrdSectionInputSchema,
+      outputSchema: UpdatePrdSectionOutputSchema,
+      annotations: IDEMPOTENT_MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.updatePrdSection(
+            UpdatePrdSectionInputSchema.parse(input),
+          ),
+        );
+      } catch (error) {
+        return buildErrorResponse('update_prd_section', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'add_decision',
+    {
+      title: 'Record a decision',
+      description:
+        'Add an entry to the PRD decision log. Use it for choices that are hard to reverse or would surprise someone reading the code later. Pass supersedes to replace an earlier decision.',
+      inputSchema: AddDecisionInputSchema,
+      outputSchema: AddDecisionOutputSchema,
+      annotations: MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.addDecision(AddDecisionInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('add_decision', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'resolve_open_question',
+    {
+      title: 'Answer an open question',
+      description:
+        'Remove an open question from the PRD and, by default, record the answer in the decision log.',
+      inputSchema: ResolveOpenQuestionInputSchema,
+      outputSchema: ResolveOpenQuestionOutputSchema,
+      annotations: MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.resolveOpenQuestion(
+            ResolveOpenQuestionInputSchema.parse(input),
+          ),
+        );
+      } catch (error) {
+        return buildErrorResponse('resolve_open_question', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'add_glossary_term',
+    {
+      title: 'Define a glossary term',
+      description:
+        'Add or redefine a term in the PRD glossary, with words to avoid, so people and agents use the same names for the same things.',
+      inputSchema: AddGlossaryTermInputSchema,
+      outputSchema: AddGlossaryTermOutputSchema,
+      annotations: IDEMPOTENT_MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.addGlossaryTerm(
+            AddGlossaryTermInputSchema.parse(input),
+          ),
+        );
+      } catch (error) {
+        return buildErrorResponse('add_glossary_term', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'update_phase',
+    {
+      title: 'Update a phase',
+      description: 'Rename a phase or change its description or colour.',
+      inputSchema: UpdatePhaseInputSchema,
+      outputSchema: PhasesOutputSchema,
+      annotations: IDEMPOTENT_MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.updatePhase(UpdatePhaseInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('update_phase', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'delete_phase',
+    {
+      title: 'Delete a phase',
+      description:
+        'Delete a phase. Its stories stay in the PRD without a phase.',
+      inputSchema: DeletePhaseInputSchema,
+      outputSchema: PhasesOutputSchema,
+      annotations: DESTRUCTIVE_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.deletePhase(DeletePhaseInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('delete_phase', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'reorder_phases',
+    {
+      title: 'Reorder phases',
+      description:
+        'Set the order of all phases. get_next_story works through phases in this order.',
+      inputSchema: ReorderPhasesInputSchema,
+      outputSchema: PhasesOutputSchema,
+      annotations: IDEMPOTENT_MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.reorderPhases(ReorderPhasesInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('reorder_phases', error);
+      }
+    },
+  );
+
+  server.registerPrompt(
+    'shape_prd',
+    {
+      title: 'Shape a PRD',
+      description:
+        'Interview the user round by round until the plan is clear, writing each decision into the PRD as it is made, then slice the work into stories and phases.',
+      argsSchema: {
+        idea: z
+          .string()
+          .optional()
+          .describe('What to build, in a sentence or two'),
+        filename: z
+          .string()
+          .optional()
+          .describe('Existing PRD to keep shaping, inside .prds'),
+      },
+    },
+    ({ idea, filename }) => ({
+      messages: [
+        {
+          role: 'user',
+          content: { type: 'text', text: shapePrdPrompt(idea, filename) },
+        },
+      ],
+    }),
+  );
+
   server.registerPrompt(
     'implement_story',
     {
@@ -440,6 +631,38 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
       ],
     }),
   );
+}
+
+function shapePrdPrompt(idea?: string, filename?: string) {
+  const start = filename
+    ? `Keep shaping the PRD "${filename}". Read it with get_prd first and continue from its open questions.`
+    : idea
+      ? `The idea: ${idea}`
+      : 'Start by asking what we are building, in a sentence or two.';
+
+  return [
+    `We are shaping a product requirements document before any code is written. ${start}`,
+    '',
+    'How to run the interview:',
+    '- Think of the plan as a tree of decisions. In each round, ask only the questions that can be answered now, i.e. whose prerequisites are already decided. Number them.',
+    '- Give a recommended answer for every question, worded so that replying "yes" accepts it. The user can accept, change or discuss each one.',
+    '- Look up facts yourself (the codebase, existing PRDs, docs) instead of asking. Only decisions go to the user.',
+    '- After each round, record what was decided before asking the next round.',
+    '- Stop when no undecided questions remain, and confirm with the user before slicing the work.',
+    '',
+    'Order of the rounds, broad to detailed:',
+    '1. What we are building and for whom (create_prd once this is clear, if there is no PRD yet).',
+    '2. Main features, then what we are explicitly NOT building (update_prd_section with nonGoals and outOfScope). Be explicit: anything unlisted is likely to be invented later.',
+    '3. Whether this is an internal tool or a product for many customers or tenants. It changes what should be configurable versus hard-coded.',
+    '4. The main entities and the words for them (add_glossary_term, including words to avoid).',
+    '5. For each feature: what is in and out of scope, and what a person must be able to do (acceptance criteria).',
+    '6. Hard-to-reverse choices (add_decision). Unanswered questions go to update_prd_section openQuestions; answer them later with resolve_open_question.',
+    '',
+    'Then slice the work:',
+    '- Each story is a thin slice through every layer that a person can try once it is done, and that fits in one agent session. Put refactoring needed by later stories in its own earlier story.',
+    '- Add stories with add_user_story, including testSeams: the public entry points the tests will exercise.',
+    '- Set dependencies with update_user_story, group stories into phases (create_custom_phase, assign_story_to_phase) in the order they should be built, and confirm the breakdown with the user.',
+  ].join('\n');
 }
 
 function implementStoryPrompt(filename: string, storyId?: string) {

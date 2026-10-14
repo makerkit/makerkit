@@ -1,5 +1,14 @@
 import { formatPrdMarkdown } from './markdown';
 import {
+  addDecision,
+  addGlossaryTerm,
+  deletePhase,
+  reorderPhases,
+  resolveOpenQuestion,
+  updatePhase,
+  updatePrdSection,
+} from './planning-operations';
+import {
   appendChangeLog,
   appendStoryLog,
   assertCanEnterStatus,
@@ -46,6 +55,18 @@ import type {
   GetNextStoryOutput,
   GetStoryInput,
   GetStoryOutput,
+  UpdatePrdSectionInput,
+  UpdatePrdSectionOutput,
+  AddDecisionInput,
+  AddDecisionOutput,
+  ResolveOpenQuestionInput,
+  ResolveOpenQuestionOutput,
+  AddGlossaryTermInput,
+  AddGlossaryTermOutput,
+  UpdatePhaseInput,
+  DeletePhaseInput,
+  ReorderPhasesInput,
+  PhasesOutput,
 } from './schema';
 import type { StoryComplexity, StructuredPRD, UserStory } from './types';
 
@@ -203,6 +224,7 @@ export class PrdService {
         guardrailMetrics: [],
       },
       decisionLog: [],
+      glossary: [],
       agentTaskPackets: [],
       changeLog: ['Initial PRD created'],
       metadata: {
@@ -257,6 +279,7 @@ export class PrdService {
       priority: input.priority,
       estimatedComplexity: complexity,
       dependencies: [],
+      ...(input.testSeams?.length ? { testSeams: input.testSeams } : {}),
     });
 
     recomputeProgress(prd);
@@ -534,6 +557,54 @@ export class PrdService {
     };
   }
 
+  // Planning ----------------------------------------------------------------
+
+  updatePrdSection(
+    input: UpdatePrdSectionInput,
+  ): Promise<UpdatePrdSectionOutput> {
+    return this.mutate(input.filename, (prd) =>
+      updatePrdSection(prd, input, this.today()),
+    );
+  }
+
+  addDecision(input: AddDecisionInput): Promise<AddDecisionOutput> {
+    return this.mutate(input.filename, (prd) =>
+      addDecision(prd, input, this.today()),
+    );
+  }
+
+  resolveOpenQuestion(
+    input: ResolveOpenQuestionInput,
+  ): Promise<ResolveOpenQuestionOutput> {
+    return this.mutate(input.filename, (prd) =>
+      resolveOpenQuestion(prd, input, this.today()),
+    );
+  }
+
+  addGlossaryTerm(input: AddGlossaryTermInput): Promise<AddGlossaryTermOutput> {
+    return this.mutate(input.filename, (prd) =>
+      addGlossaryTerm(prd, input, this.today()),
+    );
+  }
+
+  updatePhase(input: UpdatePhaseInput): Promise<PhasesOutput> {
+    return this.mutate(input.filename, (prd) =>
+      updatePhase(prd, input, this.today()),
+    );
+  }
+
+  deletePhase(input: DeletePhaseInput): Promise<PhasesOutput> {
+    return this.mutate(input.filename, (prd) =>
+      deletePhase(prd, input, this.today()),
+    );
+  }
+
+  reorderPhases(input: ReorderPhasesInput): Promise<PhasesOutput> {
+    return this.mutate(input.filename, (prd) =>
+      reorderPhases(prd, input, this.today()),
+    );
+  }
+
   // Agent workflow ----------------------------------------------------------
 
   async getNextStory(filename: string): Promise<GetNextStoryOutput> {
@@ -563,6 +634,20 @@ export class PrdService {
   }
 
   // Persistence -------------------------------------------------------------
+
+  /** Load → transform → save for operations that only touch the PRD. */
+  private async mutate<T>(
+    filename: string,
+    transform: (prd: StructuredPRD) => T,
+  ): Promise<T> {
+    const name = this.safeName(filename);
+    const prd = await this.load(name);
+    const result = transform(prd);
+
+    await this.save(name, prd);
+
+    return result;
+  }
 
   /**
    * Load and normalise a PRD. The file name is validated here, at the
@@ -737,6 +822,7 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
       guardrailMetrics: prd.measurementPlan?.guardrailMetrics ?? [],
     },
     decisionLog: prd.decisionLog ?? [],
+    glossary: prd.glossary ?? [],
     agentTaskPackets: prd.agentTaskPackets ?? [],
     changeLog: prd.changeLog ?? [],
     metadata: {

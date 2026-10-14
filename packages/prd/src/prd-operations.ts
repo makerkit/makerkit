@@ -165,6 +165,11 @@ export function updateStory(
     updated.push('title');
   }
 
+  if (input.testSeams !== undefined) {
+    story.testSeams = input.testSeams;
+    updated.push('testSeams');
+  }
+
   if (input.businessValue !== undefined) {
     story.businessValue = input.businessValue;
     updated.push('businessValue');

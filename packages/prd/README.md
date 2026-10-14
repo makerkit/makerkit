@@ -6,6 +6,7 @@ Structured product requirements documents (PRDs) stored as JSON files in `.prds/
 - **Service**: create PRDs, add and update user stories, move stories through `not_started → research → in_progress → review → completed`, export markdown.
 - **Completion gate**: a story can only be marked `completed` when the project's checks pass, so "done" means the code verifies.
 - **MCP tools**: the same operations exposed to Claude Code, Codex, OpenCode or any MCP client.
+- **Prompts**: `shape_prd` interviews you round by round (numbered questions, each with a recommended answer) and writes every decision into the PRD; `implement_story` walks an agent through one story and its hand-off log.
 
 ## Install
 
@@ -53,6 +54,10 @@ const server = new McpServer({ name: 'prd', version: '1.0.0' });
 
 registerPRDTools(server, createPrdService(createNodePrdDeps()));
 ```
+
+## Credits
+
+The `shape_prd` interview and the story-slicing rules are adapted from ideas in Matt Pocock's [skills](https://github.com/mattpocock/skills) (MIT), in particular grilling and to-tickets.
 
 ## License
 

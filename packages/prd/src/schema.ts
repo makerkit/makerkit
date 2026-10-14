@@ -93,6 +93,12 @@ export const AddUserStoryInputSchema = z.object({
    * how verbose the story is, not how hard it is. Set it explicitly.
    */
   estimatedComplexity: StoryComplexitySchema.optional(),
+  testSeams: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Public entry points the tests exercise, e.g. a route or server action',
+    ),
 });
 
 export const AddUserStoryOutputSchema = z.object({
@@ -138,6 +144,12 @@ export const UpdateUserStoryInputSchema = z.object({
   estimatedComplexity: StoryComplexitySchema.optional(),
   dependencies: z.array(z.string()).optional(),
   notes: z.string().optional(),
+  testSeams: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Public entry points the tests exercise, e.g. a route or server action',
+    ),
 });
 
 export const UpdateUserStoryOutputSchema = z.object({
@@ -327,6 +339,221 @@ export const AddStoryLogOutputSchema = z.object({
   entries: z.number().int().min(1),
 });
 
+// Planning ------------------------------------------------------------------
+
+const StringList = z.array(z.string().min(1));
+
+/**
+ * Accepted `value` for each `update_prd_section` section. Object sections are
+ * merged (only the keys supplied change); list sections are replaced.
+ */
+export const PrdSectionValueSchemas = {
+  introduction: z
+    .object({ title: z.string().min(1), overview: z.string() })
+    .partial()
+    .strict(),
+  problemStatement: z
+    .object({
+      problem: z.string(),
+      marketOpportunity: z.string(),
+      targetUsers: StringList,
+    })
+    .partial()
+    .strict(),
+  solutionOverview: z
+    .object({
+      description: z.string(),
+      keyFeatures: StringList,
+      successMetrics: StringList,
+    })
+    .partial()
+    .strict(),
+  nonGoals: StringList,
+  outOfScope: StringList,
+  assumptions: StringList,
+  openQuestions: StringList,
+  technicalRequirements: z
+    .object({
+      constraints: StringList,
+      integrationNeeds: StringList,
+      complianceRequirements: StringList,
+    })
+    .partial()
+    .strict(),
+  technicalContracts: z
+    .object({
+      apis: StringList,
+      dataModels: StringList,
+      permissions: StringList,
+      integrationBoundaries: StringList,
+    })
+    .partial()
+    .strict(),
+  acceptanceCriteria: z
+    .object({ global: StringList, qualityStandards: StringList })
+    .partial()
+    .strict(),
+  constraints: z
+    .object({
+      timeline: z.string(),
+      budget: z.string(),
+      resources: StringList,
+      nonNegotiables: StringList,
+    })
+    .partial()
+    .strict(),
+  rolloutPlan: z
+    .object({
+      featureFlags: StringList,
+      migrationPlan: StringList,
+      rolloutPhases: StringList,
+      rollbackConditions: StringList,
+    })
+    .partial()
+    .strict(),
+  measurementPlan: z
+    .object({
+      events: StringList,
+      dashboards: StringList,
+      baselineMetrics: StringList,
+      targetMetrics: StringList,
+      guardrailMetrics: StringList,
+    })
+    .partial()
+    .strict(),
+  risks: z.array(
+    z.object({
+      id: z.string().optional(),
+      description: z.string().min(1),
+      mitigation: z.string(),
+      owner: z.string(),
+      severity: z.enum(['low', 'medium', 'high']),
+    }),
+  ),
+  dependencies: z.array(
+    z.object({
+      id: z.string().optional(),
+      name: z.string().min(1),
+      description: z.string(),
+      blocking: z.boolean(),
+      owner: z.string().optional(),
+    }),
+  ),
+} as const;
+
+export type PrdSection = keyof typeof PrdSectionValueSchemas;
+
+const PRD_SECTIONS = Object.keys(PrdSectionValueSchemas) as [
+  PrdSection,
+  ...PrdSection[],
+];
+
+export const UpdatePrdSectionInputSchema = z.object({
+  filename: FilenameSchema,
+  section: z.enum(PRD_SECTIONS),
+  value: z
+    .unknown()
+    .describe(
+      'Object sections (introduction, problemStatement, solutionOverview, technicalRequirements, technicalContracts, acceptanceCriteria, constraints, rolloutPlan, measurementPlan) take an object and only the keys given change. List sections (nonGoals, outOfScope, assumptions, openQuestions) take a string array and replace the list. risks and dependencies take an array of items and replace the list; items without an id get one.',
+    ),
+});
+
+export const UpdatePrdSectionOutputSchema = z.object({
+  section: z.string(),
+  updated: z.array(z.string()),
+});
+
+export const AddDecisionInputSchema = z.object({
+  filename: FilenameSchema,
+  decision: z.string().min(1),
+  rationale: z.string().min(1),
+  owner: z.string().optional(),
+  topic: z
+    .string()
+    .optional()
+    .describe('What it is about, e.g. "story:US003" or "billing"'),
+  status: z.enum(['proposed', 'accepted']).default('accepted'),
+  supersedes: z
+    .string()
+    .optional()
+    .describe('Id of an earlier decision this one replaces'),
+});
+
+export const AddDecisionOutputSchema = z.object({
+  decision_id: z.string(),
+  superseded: z.string().nullable(),
+  total_decisions: z.number().int().min(1),
+});
+
+export const ResolveOpenQuestionInputSchema = z.object({
+  filename: FilenameSchema,
+  question: z
+    .string()
+    .min(1)
+    .describe('The open question, exactly as listed in the PRD'),
+  answer: z.string().min(1),
+  recordDecision: z
+    .boolean()
+    .default(true)
+    .describe('Also add the answer to the decision log'),
+});
+
+export const ResolveOpenQuestionOutputSchema = z.object({
+  remaining_questions: z.number().int().min(0),
+  decision_id: z.string().nullable(),
+});
+
+export const AddGlossaryTermInputSchema = z.object({
+  filename: FilenameSchema,
+  term: z.string().min(1),
+  definition: z.string().min(1),
+  avoid: z
+    .array(z.string().min(1))
+    .default([])
+    .describe('Synonyms that should not be used for this concept'),
+});
+
+export const AddGlossaryTermOutputSchema = z.object({
+  term: z.string(),
+  replaced: z.boolean(),
+  total_terms: z.number().int().min(1),
+});
+
+export const UpdatePhaseInputSchema = z.object({
+  filename: FilenameSchema,
+  phaseId: z.string().min(1),
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, 'Expected a hex colour such as #4f46e5')
+    .optional(),
+});
+
+export const DeletePhaseInputSchema = z.object({
+  filename: FilenameSchema,
+  phaseId: z.string().min(1),
+});
+
+export const ReorderPhasesInputSchema = z.object({
+  filename: FilenameSchema,
+  phaseIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe('Every phase id, in the new order'),
+});
+
+export const PhasesOutputSchema = z.object({
+  phases: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      order: z.number().int().min(0),
+      user_story_ids: z.array(z.string()),
+    }),
+  ),
+});
+
 export type PrdSummary = z.infer<typeof PrdSummarySchema>;
 export type ListPrdsOutput = z.infer<typeof ListPrdsOutputSchema>;
 export type GetPrdInput = z.infer<typeof GetPrdInputSchema>;
@@ -379,3 +606,21 @@ export type GetStoryInput = z.infer<typeof GetStoryInputSchema>;
 export type GetStoryOutput = z.infer<typeof GetStoryOutputSchema>;
 export type AddStoryLogInput = z.infer<typeof AddStoryLogInputSchema>;
 export type AddStoryLogOutput = z.infer<typeof AddStoryLogOutputSchema>;
+export type UpdatePrdSectionInput = z.infer<typeof UpdatePrdSectionInputSchema>;
+export type UpdatePrdSectionOutput = z.infer<
+  typeof UpdatePrdSectionOutputSchema
+>;
+export type AddDecisionInput = z.infer<typeof AddDecisionInputSchema>;
+export type AddDecisionOutput = z.infer<typeof AddDecisionOutputSchema>;
+export type ResolveOpenQuestionInput = z.infer<
+  typeof ResolveOpenQuestionInputSchema
+>;
+export type ResolveOpenQuestionOutput = z.infer<
+  typeof ResolveOpenQuestionOutputSchema
+>;
+export type AddGlossaryTermInput = z.infer<typeof AddGlossaryTermInputSchema>;
+export type AddGlossaryTermOutput = z.infer<typeof AddGlossaryTermOutputSchema>;
+export type UpdatePhaseInput = z.infer<typeof UpdatePhaseInputSchema>;
+export type DeletePhaseInput = z.infer<typeof DeletePhaseInputSchema>;
+export type ReorderPhasesInput = z.infer<typeof ReorderPhasesInputSchema>;
+export type PhasesOutput = z.infer<typeof PhasesOutputSchema>;

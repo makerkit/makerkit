@@ -12,3 +12,11 @@ Adds an agent workflow on top of the kit version:
 - `implement_story` MCP prompt.
 - Stories cannot move to `in_progress`, `review` or `completed` before their dependencies are completed.
 - Every save increments `metadata.revision`; a write based on an outdated read is rejected instead of overwriting the other change.
+
+Planning tools for shaping a PRD after it is created:
+
+- `update_prd_section` (scope, risks, dependencies, technical requirements, acceptance criteria, rollout, measurement, ...), `add_decision`, `resolve_open_question`, `add_glossary_term`.
+- `update_phase`, `delete_phase`, `reorder_phases`.
+- A PRD `glossary` and per-story `testSeams`.
+- `shape_prd` MCP prompt: a round-by-round interview that writes each decision into the PRD, then slices the work into thin stories and phases.
+
