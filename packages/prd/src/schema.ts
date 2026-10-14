@@ -106,6 +106,15 @@ export const AddUserStoryInputSchema = z.object({
     .describe(
       'Public entry points the tests exercise, e.g. a route or server action',
     ),
+  dependencies: z
+    .array(z.string().min(1))
+    .optional()
+    .describe('Ids of stories that must be completed first, e.g. ["US001"]'),
+  phaseId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Phase to put the story in, e.g. "PHASE002"'),
 });
 
 export const AddUserStoryOutputSchema = z.object({

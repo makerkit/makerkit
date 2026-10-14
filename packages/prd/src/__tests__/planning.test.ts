@@ -398,3 +398,88 @@ describe('MCP registration', () => {
     }
   });
 });
+
+describe('add_user_story with dependencies and a phase', () => {
+  const STORY = {
+    userType: 'founder',
+    benefit: 'it helps',
+    acceptanceCriteria: ['works', 'is tested'],
+    priority: 'P2' as const,
+  };
+
+  it('sets dependencies and the phase in the same call', async () => {
+    const { filename, service, read } = await seed();
+    const { phase } = await service.createCustomPhase({
+      filename,
+      name: 'Deals',
+      description: '',
+      color: '#4f46e5',
+    });
+
+    await service.addUserStory({ ...STORY, filename, action: 'add a contact' });
+    await service.addUserStory({
+      ...STORY,
+      filename,
+      action: 'add a deal',
+      dependencies: ['US001'],
+      phaseId: phase.id,
+    });
+
+    const prd = read();
+
+    expect(prd.userStories[1]?.dependencies).toEqual(['US001']);
+    expect(prd.customPhases[0]?.userStoryIds).toEqual(['US002']);
+  });
+
+  it('rejects an unknown dependency or phase without saving the story', async () => {
+    const { filename, service, read } = await seed();
+
+    await expect(
+      service.addUserStory({
+        ...STORY,
+        filename,
+        action: 'add a deal',
+        dependencies: ['US404'],
+      }),
+    ).rejects.toThrow(/US404/);
+
+    await expect(
+      service.addUserStory({
+        ...STORY,
+        filename,
+        action: 'add a deal',
+        phaseId: 'PHASE404',
+      }),
+    ).rejects.toThrow(/PHASE404/);
+
+    expect(read().userStories).toEqual([]);
+    expect(read().metadata.lastStoryNumber).toBeUndefined();
+  });
+
+  it('accepts both fields through the MCP tool', async () => {
+    const fake = createFakeMcpServer();
+    const { files, filename, service, read } = await seed();
+
+    await service.addUserStory({ ...STORY, filename, action: 'add a contact' });
+    const { phase } = await service.createCustomPhase({
+      filename,
+      name: 'Deals',
+      description: '',
+      color: '#4f46e5',
+    });
+
+    registerPRDTools(fake.server, createPrdService(createDeps(files)));
+
+    const result = await fake.call('add_user_story', {
+      ...STORY,
+      filename,
+      action: 'add a deal',
+      dependencies: ['US001'],
+      phaseId: phase.id,
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(read().userStories[1]?.dependencies).toEqual(['US001']);
+    expect(read().customPhases[0]?.userStoryIds).toEqual(['US002']);
+  });
+});

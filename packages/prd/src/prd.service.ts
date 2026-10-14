@@ -23,6 +23,7 @@ import {
   nextStoryId,
   renderUserStory,
   updateStory,
+  validateDependencies,
 } from './prd-operations';
 import { assertSafeFileName } from './safe-file-name';
 import type {
@@ -296,6 +297,23 @@ export class PrdService {
       dependencies: [],
       ...(input.testSeams?.length ? { testSeams: input.testSeams } : {}),
     });
+
+    // Validated against the in-memory PRD; a bad id throws before anything is saved.
+    if (input.dependencies?.length) {
+      findStory(prd, storyId).dependencies = validateDependencies(
+        prd,
+        storyId,
+        input.dependencies,
+      );
+    }
+
+    if (input.phaseId) {
+      assignStoryToPhase(
+        prd,
+        { filename, storyId, phaseId: input.phaseId },
+        this.today(),
+      );
+    }
 
     recomputeProgress(prd);
     appendChangeLog(prd, `Added ${storyId} (${title})`, this.today());

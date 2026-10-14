@@ -22,3 +22,4 @@ Planning tools for shaping a PRD after it is created:
 - `review_story` MCP prompt: checks a story's changes against its acceptance criteria, non-goals, out-of-scope items and test seams, and reports approve or send back.
 - `check_plan`: a structured checklist of what a PRD is missing (`required` items block the build, `recommended` items improve it), each naming the section and stories involved. `get_improvement_suggestions` now uses it and also reports stories without test seams and, past five stories, stories outside a phase.
 - Templates (`saas-feature`, `internal-tool`, `integration`, `mvp`): `list_templates`, `create_prd({ template })` fills empty sections and adds the template's open questions, and `shape_prd({ template })` adds questions for that kind of work.
+- `add_user_story` accepts `dependencies` and `phaseId`, so a story is added, linked and placed in one call. Unknown stories or phases reject the call without saving anything.

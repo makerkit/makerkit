@@ -228,7 +228,7 @@ export function updateStory(
  * Dependencies must name real stories, never the story itself, and never form
  * a cycle — an unsatisfiable order is worse than no order at all.
  */
-function validateDependencies(
+export function validateDependencies(
   prd: StructuredPRD,
   storyId: string,
   dependencies: string[],

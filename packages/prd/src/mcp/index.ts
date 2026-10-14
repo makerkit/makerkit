@@ -750,8 +750,9 @@ function shapePrdPrompt(
     '',
     'Then slice the work:',
     '- Each story is a thin slice through every layer that a person can try once it is done, and that fits in one agent session. Put refactoring needed by later stories in its own earlier story.',
-    '- Add stories with add_user_story, including testSeams: the public entry points the tests will exercise.',
-    '- Set dependencies with update_user_story, group stories into phases (create_custom_phase, assign_story_to_phase) in the order they should be built, and confirm the breakdown with the user.',
+    '- Create the phases first (create_custom_phase), in the order they should be built.',
+    '- Add each story with add_user_story in one call: testSeams (the public entry points the tests will exercise), dependencies (stories that must be completed first) and phaseId.',
+    '- Confirm the breakdown with the user, then fix anything with update_user_story or assign_story_to_phase.',
   ].join('\n');
 }
 
