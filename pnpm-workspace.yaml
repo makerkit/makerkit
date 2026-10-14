@@ -33,3 +33,7 @@ peerDependencyRules:
   allowedVersions:
     # Remix v2 and tsconfck declare TypeScript ^5 peers; they work with 6.
     typescript: '6'
+
+overrides:
+  # One zod (and so one MCP SDK copy) across the repo; keep in sync with the catalog.
+  zod: 4.6.5

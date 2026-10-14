@@ -1,0 +1,44 @@
+{
+  "name": "@makerkit/prd-mcp",
+  "version": "0.0.0",
+  "description": "MCP server for structured PRDs in .prds/. Lets Claude Code, Codex, OpenCode and other agents read and update PRDs and stories.",
+  "keywords": [
+    "ai-agents",
+    "claude-code",
+    "codex",
+    "mcp",
+    "opencode",
+    "prd"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/makerkit/makerkit",
+    "directory": "packages/prd-mcp"
+  },
+  "bin": {
+    "makerkit-prd-mcp": "./bin.mjs"
+  },
+  "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "directory": "dist"
+  },
+  "scripts": {
+    "build": "tsdown && node ../../scripts/prepare-dist.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@makerkit/prd": "workspace:^",
+    "@modelcontextprotocol/sdk": "^1.32.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

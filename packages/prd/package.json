@@ -36,7 +36,8 @@
   },
   "publishConfig": {
     "access": "public",
-    "directory": "dist"
+    "directory": "dist",
+    "linkDirectory": true
   },
   "scripts": {
     "build": "tsdown && node ../../scripts/prepare-dist.mjs",

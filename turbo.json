@@ -2,12 +2,31 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
-    "typecheck": {},
+    "typecheck": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
     "test": {
-      "env": ["SUPABASE_*"]
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "SUPABASE_*"
+      ]
+    },
+    "@makerkit/prd-mcp#test": {
+      "dependsOn": [
+        "^build",
+        "build"
+      ]
     }
   }
 }
