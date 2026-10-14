@@ -1,9 +1,11 @@
+import type { ReactElement } from 'react';
+
+import { SupabaseClient } from '@supabase/supabase-js';
+
 import {
   DataLoader,
   fetchDataFromSupabase,
 } from '@makerkit/data-loader-supabase-core';
-
-import { SupabaseClient } from '@supabase/supabase-js';
 
 const PAGE_SIZE = 10;
 
@@ -19,19 +21,25 @@ export interface ServerDataLoaderProps<
   > = DataLoader.StarOperator,
   Single extends boolean = false,
   CamelCase extends boolean = false,
-> extends DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase> {
+> extends DataLoader.DataLoaderProps<
+  Client,
+  TableName,
+  Query,
+  Single,
+  CamelCase
+> {
   children: (props: {
-    data: DataLoader.TransformData<DataLoader.Data<
-      DataLoader.ExtractDatabase<Client>,
-      TableName,
-      Query
-    >, CamelCase, Single>;
+    data: DataLoader.TransformData<
+      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+      CamelCase,
+      Single
+    >;
     error: Error | null;
     count: number;
     page: number;
     pageSize: number;
     pageCount: number;
-  }) => React.ReactElement;
+  }) => ReactElement;
 }
 
 /**

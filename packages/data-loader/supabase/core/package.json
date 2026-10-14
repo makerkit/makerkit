@@ -1,22 +1,48 @@
 {
   "name": "@makerkit/data-loader-supabase-core",
-  "version": "0.0.9",
+  "version": "0.0.10",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/makerkit/makerkit",
+    "directory": "packages/data-loader/supabase/core"
+  },
   "main": "./index.js",
-  "dependencies": {
-    "ts-case-convert": "^2.0.6"
-  },
-  "peerDependencies": {
-    "@supabase/supabase-js": ">=2.0.0",
-    "@supabase/postgrest-js": ">1.0.0"
-  },
-  "devDependencies": {
-    "vitest": "*"
-  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
       "import": "./index.mjs",
       "require": "./index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "directory": "dist"
+  },
+  "scripts": {
+    "build": "tsdown && node ../../../../scripts/prepare-dist.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.lib.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ts-case-convert": "^2.0.6"
+  },
+  "devDependencies": {
+    "@supabase/postgrest-js": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "ts-case-convert": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@supabase/postgrest-js": ">=2.0.0",
+    "@supabase/supabase-js": ">=2.74.0"
   }
 }

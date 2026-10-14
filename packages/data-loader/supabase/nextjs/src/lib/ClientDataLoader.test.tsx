@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, renderHook, waitFor } from '@testing-library/react';
+
 import { createSupabaseClient } from '@makerkit/test-utils';
+
 import { ClientDataLoader } from './ClientDataLoader';
 import { useSupabaseQuery } from './use-supabase-query';
 
@@ -91,9 +93,6 @@ test('Fetch a partial table', async (ctx) => {
     {
       id: 3,
       name: 'Test the SDK',
-    },
-    {
-      wrapper: createWrapper(),
     },
   ]);
 });

@@ -1,0 +1,14 @@
+{
+  "name": "@makerkit/test-utils",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.lib.json"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

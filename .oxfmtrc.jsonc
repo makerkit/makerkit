@@ -1,0 +1,53 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "printWidth": 80,
+  "semi": true,
+  "tabWidth": 2,
+  "useTabs": false,
+  "arrowParens": "always",
+  "sortImports": {
+    "customGroups": [
+      {
+        "groupName": "react",
+        "elementNamePattern": ["react", "react-dom"],
+      },
+      {
+        "groupName": "next",
+        "elementNamePattern": ["next", "next/**"],
+      },
+      {
+        "groupName": "remix",
+        "elementNamePattern": ["@remix-run/**"],
+      },
+      {
+        "groupName": "supabase",
+        "elementNamePattern": ["@supabase/**"],
+      },
+      {
+        "groupName": "makerkit",
+        "elementNamePattern": ["@makerkit/**"],
+      },
+    ],
+    "groups": [
+      "react",
+      "next",
+      "remix",
+      "supabase",
+      "external",
+      "makerkit",
+      ["parent", "sibling", "index"],
+    ],
+    "newlinesBetween": true,
+    "order": "asc",
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "pnpm-lock.yaml",
+    "database.types.ts",
+    "*.md",
+    ".changeset",
+  ],
+}

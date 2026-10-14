@@ -4,7 +4,7 @@
     "rootDir": ".",
     "sourceMap": true,
     "declaration": false,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "importHelpers": true,
@@ -13,20 +13,19 @@
     "lib": ["es2020", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
-    "baseUrl": ".",
     "paths": {
       "@makerkit/data-loader-supabase-core": [
-        "packages/data-loader/supabase/core/src/index.ts"
+        "./packages/data-loader/supabase/core/src/index.ts"
       ],
       "@makerkit/data-loader-supabase-nextjs": [
-        "packages/data-loader/supabase/nextjs/src/index.ts"
+        "./packages/data-loader/supabase/nextjs/src/index.ts"
       ],
       "@makerkit/data-loader/supabase/remix": [
-        "packages/data-loader/supabase/remix/src/index.ts"
+        "./packages/data-loader/supabase/remix/src/index.ts"
       ],
-      "@makerkit/qstash": ["packages/qstash/src/index.ts"],
-      "@makerkit/test-utils": ["packages/test-utils/src/index.ts"],
-      "database.types": ["supabase/database.types.ts"]
+      "@makerkit/qstash": ["./packages/qstash/src/index.ts"],
+      "@makerkit/test-utils": ["./packages/test-utils/src/index.ts"],
+      "database.types": ["./supabase/database.types.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

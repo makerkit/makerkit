@@ -1,11 +1,11 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 
 import {
   DataLoader,
   fetchDataFromSupabase,
 } from '@makerkit/data-loader-supabase-core';
-
-import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * @name useSupabaseQuery
@@ -22,24 +22,45 @@ export function useSupabaseQuery<
   Single extends boolean = false,
   CamelCase extends boolean = false,
 >(
-  props: DataLoader.DataLoaderProps<Client, TableName, Selection, Single, CamelCase> & {
-    config?: Omit<UseQueryOptions<{
-      data: DataLoader.TransformData<
-        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
-        CamelCase,
-        Single
-      >;
-      count: number;
-      error: Error | null;
-    }, Error, {
-      data: DataLoader.TransformData<
-        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
-        CamelCase,
-        Single
-      >;
-      count: number;
-      error: Error | null;
-    }>, 'queryFn' | 'queryKey'>
+  props: DataLoader.DataLoaderProps<
+    Client,
+    TableName,
+    Selection,
+    Single,
+    CamelCase
+  > & {
+    config?: Omit<
+      UseQueryOptions<
+        {
+          data: DataLoader.TransformData<
+            DataLoader.Data<
+              DataLoader.ExtractDatabase<Client>,
+              TableName,
+              Selection
+            >,
+            CamelCase,
+            Single
+          >;
+          count: number;
+          error: Error | null;
+        },
+        Error,
+        {
+          data: DataLoader.TransformData<
+            DataLoader.Data<
+              DataLoader.ExtractDatabase<Client>,
+              TableName,
+              Selection
+            >,
+            CamelCase,
+            Single
+          >;
+          count: number;
+          error: Error | null;
+        }
+      >,
+      'queryFn' | 'queryKey'
+    >;
   },
 ) {
   const queryKey = [
@@ -57,13 +78,19 @@ export function useSupabaseQuery<
     ...(props.config ?? {}),
     queryKey,
     queryFn: () =>
-      fetchDataFromSupabase<Client, TableName, Selection, Single, CamelCase>(props),
+      fetchDataFromSupabase<Client, TableName, Selection, Single, CamelCase>(
+        props,
+      ),
   });
 
   if (!data) {
     return {
       data: (props.single ? undefined : []) as DataLoader.TransformData<
-        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Selection>,
+        DataLoader.Data<
+          DataLoader.ExtractDatabase<Client>,
+          TableName,
+          Selection
+        >,
         CamelCase,
         Single
       >,

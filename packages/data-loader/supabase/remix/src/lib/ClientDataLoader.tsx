@@ -1,8 +1,12 @@
-import { useSearchParams } from '@remix-run/react';
 import { useCallback } from 'react';
+import type { ReactElement } from 'react';
+
+import { useSearchParams } from '@remix-run/react';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+
 import type { UseQueryOptions } from '@tanstack/react-query';
+
 import type { DataLoader } from '@makerkit/data-loader-supabase-core';
 
 import { useSupabaseQuery } from './use-supabase-query';
@@ -18,34 +22,47 @@ interface DataLoaderProps<
   > = DataLoader.StarOperator,
   Single extends boolean = false,
   CamelCase extends boolean = false,
-> extends DataLoader.DataLoaderProps<Client, TableName, Query, Single, CamelCase> {
+> extends DataLoader.DataLoaderProps<
+  Client,
+  TableName,
+  Query,
+  Single,
+  CamelCase
+> {
   client: Client;
 
-  config?: Omit<UseQueryOptions<{
-    data: DataLoader.TransformData<
-      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
-      CamelCase,
-      Single
-    >;
-    count: number;
-    error: Error | null;
-  }, Error, {
-    data: DataLoader.TransformData<
-      DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
-      CamelCase,
-      Single
-    >;
-    count: number;
-    error: Error | null;
-  }>, 'queryFn' | 'queryKey'>;
+  config?: Omit<
+    UseQueryOptions<
+      {
+        data: DataLoader.TransformData<
+          DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+          CamelCase,
+          Single
+        >;
+        count: number;
+        error: Error | null;
+      },
+      Error,
+      {
+        data: DataLoader.TransformData<
+          DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+          CamelCase,
+          Single
+        >;
+        count: number;
+        error: Error | null;
+      }
+    >,
+    'queryFn' | 'queryKey'
+  >;
 
   children: (props: {
     result: {
-      data: DataLoader.TransformData<DataLoader.Data<
-        DataLoader.ExtractDatabase<Client>,
-        TableName,
-        Query
-      >, CamelCase, Single>;
+      data: DataLoader.TransformData<
+        DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+        CamelCase,
+        Single
+      >;
       count: number;
       page: number;
       pageSize: number;
@@ -55,7 +72,7 @@ interface DataLoaderProps<
     error: Error | null;
     isLoading: boolean;
     onPageChange: (page: number) => void;
-  }) => React.ReactElement;
+  }) => ReactElement;
 }
 
 /**

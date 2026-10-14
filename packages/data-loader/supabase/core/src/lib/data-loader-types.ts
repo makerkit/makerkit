@@ -1,13 +1,33 @@
-import type { ObjectToCamel } from 'ts-case-convert/lib/caseConvert';
-import type { PostgrestFilterBuilder } from '@supabase/postgrest-js';
-import type { GetResult } from '@supabase/postgrest-js/dist/module/select-query-parser';
-import type { GenericSchema } from '@supabase/postgrest-js/dist/module/types';
-import type { QueryData, SupabaseClient } from '@supabase/supabase-js';
+import type {
+  PostgrestFilterBuilder,
+  UnstableGetResult as GetResult,
+} from '@supabase/postgrest-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+import type { ObjectToCamel } from 'ts-case-convert';
 
 export namespace DataLoader {
+  /**
+   * Structural stand-in for postgrest-js's `GenericSchema`, which is not part
+   * of its public API. Loose on purpose so any generated `Database` type fits.
+   */
+  export type GenericSchema = {
+    Tables: Record<string, any>;
+    Views: Record<string, any>;
+    Functions: Record<string, any>;
+  };
+
   export type GenericDatabase = {
     public: GenericSchema;
   };
+
+  /** Client-level PostgREST settings (e.g. `PostgrestVersion`), as supabase-js infers them. */
+  export type ClientOptions = { PostgrestVersion?: string };
+
+  export type ExtractClientOptions<Client> =
+    Client extends SupabaseClient<any, any, any, any, infer Options>
+      ? Options
+      : { PostgrestVersion: '12' };
 
   type ParserError<Message extends string> = { error: true } & Message;
   export type GenericStringError = ParserError<'Received a generic string'>;
@@ -245,10 +265,9 @@ export namespace DataLoader {
                                 ? string
                                 : Operator extends Not
                                   ? {
-                                      [k in Exclude<
-                                        Operators,
-                                        Not
-                                      >]?: GetOperatorOperation<
+                                      [
+                                        k in Exclude<Operators, Not>
+                                      ]?: GetOperatorOperation<
                                         Database,
                                         TableName,
                                         Property,
@@ -294,18 +313,20 @@ export namespace DataLoader {
       | KeysFromNestedProps<Database, TableName>,
   > = {
     [key in ExtractNested<Field>['parent']]: {
-      [inner in Field extends RelationFieldsRow<
-        Database,
-        TableName,
-        ExtractSubTable<Database, TableName, key>
-      >['field']
-        ? ExtractNested<Field>['field'] extends keyof Row<
-            Database,
-            ExtractSubTable<Database, TableName, key>
-          >
-          ? ExtractNested<Field>['field']
+      [
+        inner in Field extends RelationFieldsRow<
+          Database,
+          TableName,
+          ExtractSubTable<Database, TableName, key>
+        >['field']
+          ? ExtractNested<Field>['field'] extends keyof Row<
+              Database,
+              ExtractSubTable<Database, TableName, key>
+            >
+            ? ExtractNested<Field>['field']
+            : never
           : never
-        : never]: inner extends keyof Row<
+      ]: inner extends keyof Row<
         Database,
         ExtractSubTable<Database, TableName, key>
       >
@@ -313,34 +334,32 @@ export namespace DataLoader {
         : never;
     };
   } & {
-    [key in ExtractNested<Field>['original'] extends keyof Row<
-      Database,
-      TableName
-    >
-      ? ExtractNested<Field>['original']
-      : never]: Row<Database, TableName>[key];
+    [
+      key in ExtractNested<Field>['original'] extends keyof Row<
+        Database,
+        TableName
+      >
+        ? ExtractNested<Field>['original']
+        : never
+    ]: Row<Database, TableName>[key];
   };
 
+  /** The shape of one returned row for a given selection. */
   export type Data<
     Database extends GenericDatabase,
     TableName extends keyof Tables<Database>,
     Selection extends Query<Database, TableName> = StarOperator,
+    Options extends ClientOptions = { PostgrestVersion: '12' },
   > = Selection extends StarOperator
     ? Row<Database, TableName>
     : Selection extends string
-      ? QueryData<
-          PostgrestFilterBuilder<
-            Database['public'],
-            Row<Database, TableName>,
-            GetResult<
-              Database['public'],
-              Row<Database, TableName>,
-              TableName,
-              Relationships<Database, TableName>,
-              Selection
-            >,
-            Relationships<Database, TableName>
-          >
+      ? GetResult<
+          Database['public'],
+          Row<Database, TableName>,
+          TableName,
+          Relationships<Database, TableName>,
+          Selection,
+          Options
         >
       : Selection extends Array<SelectionFields<Database, TableName>>
         ? MappedField<Database, TableName, Selection[number]>
@@ -360,10 +379,8 @@ export namespace DataLoader {
   export interface DataLoaderProps<
     Client extends SupabaseClient<DataLoader.GenericDatabase>,
     TableName extends DataLoader.TableNames<ExtractDatabase<Client>>,
-    Query extends DataLoader.Query<
-      ExtractDatabase<Client>,
-      TableName
-    > = StarOperator,
+    Query extends DataLoader.Query<ExtractDatabase<Client>, TableName> =
+      StarOperator,
     Single extends boolean | undefined = false,
     CamelCase extends boolean = false,
   > {
@@ -372,32 +389,8 @@ export namespace DataLoader {
     where?:
       | DataLoader.Filter<ExtractDatabase<Client>, TableName>
       | ((
-          query: PostgrestFilterBuilder<
-            ExtractDatabase<Client>['public'],
-            Row<ExtractDatabase<Client>, TableName>,
-            | GetResult<
-                ExtractDatabase<Client>['public'],
-                Row<ExtractDatabase<Client>, TableName>,
-                TableName,
-                Relationships<ExtractDatabase<Client>, TableName>,
-                string
-              >
-            | GenericStringError[],
-            Relationships<ExtractDatabase<Client>, TableName>
-          >,
-        ) => PostgrestFilterBuilder<
-          ExtractDatabase<Client>['public'],
-          Row<ExtractDatabase<Client>, TableName>,
-          | GetResult<
-              ExtractDatabase<Client>['public'],
-              Row<ExtractDatabase<Client>, TableName>,
-              TableName,
-              Relationships<ExtractDatabase<Client>, TableName>,
-              string
-            >
-          | GenericStringError[],
-          Relationships<ExtractDatabase<Client>, TableName>
-        >);
+          query: QueryBuilder<Client, TableName>,
+        ) => QueryBuilder<Client, TableName>);
     sort?: DataLoader.SortBy<ExtractDatabase<Client>, TableName>;
     page?: number;
     limit?: number;
@@ -407,11 +400,36 @@ export namespace DataLoader {
     camelCase?: CamelCase;
   }
 
-  export type ExtractDatabase<Client> = Client extends SupabaseClient<
-    infer Database extends DataLoader.GenericDatabase
-  >
-    ? Database
-    : never;
+  /**
+   * The builder returned by `client.from(table).select(columns)`, i.e. what a
+   * `where` function receives and must return.
+   */
+  export type QueryBuilder<
+    Client extends SupabaseClient<GenericDatabase>,
+    TableName extends TableNames<ExtractDatabase<Client>>,
+  > = PostgrestFilterBuilder<
+    ExtractClientOptions<Client>,
+    ExtractDatabase<Client>['public'],
+    Row<ExtractDatabase<Client>, TableName>,
+    GetResult<
+      ExtractDatabase<Client>['public'],
+      Row<ExtractDatabase<Client>, TableName>,
+      TableName,
+      Relationships<ExtractDatabase<Client>, TableName>,
+      string,
+      ExtractClientOptions<Client>
+    >[],
+    TableName,
+    Relationships<ExtractDatabase<Client>, TableName>,
+    'GET'
+  >;
+
+  export type ExtractDatabase<Client> =
+    Client extends SupabaseClient<
+      infer Database extends DataLoader.GenericDatabase
+    >
+      ? Database
+      : never;
 
   export type ReturnData<
     Data extends object | undefined,

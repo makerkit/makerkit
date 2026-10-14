@@ -2,7 +2,10 @@ import { QStashTaskQueue } from './qstash-task-queue.impl';
 
 const UPSTASH_SIGNATURE_HEADER = 'Upstash-Signature';
 
-export async function verifyQStashRequest<Req extends Request, Queue extends QStashTaskQueue<unknown>>(request: Req, queue: Queue) {
+export async function verifyQStashRequest<
+  Req extends Request,
+  Queue extends QStashTaskQueue<unknown>,
+>(request: Req, queue: Queue) {
   try {
     const body = await request.text();
     const signature = request.headers.get(UPSTASH_SIGNATURE_HEADER);

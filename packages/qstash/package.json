@@ -1,10 +1,31 @@
 {
   "name": "@makerkit/qstash",
   "version": "0.0.1",
-  "dependencies": {
-    "@upstash/qstash": ">=2.0.0"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/makerkit/makerkit",
+    "directory": "packages/qstash"
   },
   "main": "./index.js",
   "module": "./index.mjs",
-  "typings": "./index.d.ts"
+  "typings": "./index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "directory": "dist"
+  },
+  "scripts": {
+    "build": "tsdown && node ../../scripts/prepare-dist.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.lib.json"
+  },
+  "dependencies": {
+    "@upstash/qstash": ">=2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@upstash/qstash": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }

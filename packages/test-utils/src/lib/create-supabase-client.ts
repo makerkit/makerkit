@@ -1,6 +1,8 @@
-import { Database } from 'database.types';
-import * as process from 'process';
 import { createClient } from '@supabase/supabase-js';
+
+import { Database } from 'database.types';
+
+import * as process from 'process';
 
 // we provide defaults for testing in isolation
 const API_KEY =
@@ -12,10 +14,12 @@ const SUPABASE_TEST_EMAIL =
 const SUPABASE_TEST_PASSWORD =
   process.env['SUPABASE_TEST_PASSWORD'] ?? 'testing';
 
-type Client = ReturnType<typeof createClient<Database>>;
+type Client<Schema = Database> = ReturnType<typeof createClient<Schema>>;
 
-export async function createSupabaseClient(params: { auth: boolean }) {
-  const client = createClient<Database>(SUPABASE_URL, API_KEY, {
+export async function createSupabaseClient<GenericSchema = Database>(params: {
+  auth: boolean;
+}) {
+  const client = createClient<GenericSchema>(SUPABASE_URL, API_KEY, {
     auth: {
       persistSession: false,
     },
@@ -28,7 +32,7 @@ export async function createSupabaseClient(params: { auth: boolean }) {
   return client;
 }
 
-function withAuth(client: Client) {
+function withAuth<GenericSchema>(client: Client<GenericSchema>) {
   return client.auth.signInWithPassword({
     email: SUPABASE_TEST_EMAIL,
     password: SUPABASE_TEST_PASSWORD,
