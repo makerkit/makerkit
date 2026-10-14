@@ -112,7 +112,7 @@ export const GetFunctionDetailsInputSchema = z.object({
     .string()
     .min(1)
     .describe(
-      'Function name, optionally schema-qualified (kit.has_permission)',
+      'Function name, optionally schema-qualified (e.g. public.has_role)',
     ),
 });
 
@@ -121,7 +121,11 @@ export const SearchDatabaseFunctionsInputSchema = z.object({
 });
 
 export const GetTableInfoInputSchema = z.object({
-  schema: z.string().default('public'),
+  // Optional rather than defaulted, so the configured defaultSchema applies.
+  schema: z
+    .string()
+    .optional()
+    .describe('Defaults to the project default schema (usually public)'),
   tableName: z.string().min(1),
 });
 

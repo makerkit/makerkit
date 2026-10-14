@@ -352,3 +352,75 @@ describe('DatabaseService enums and summary', () => {
     });
   });
 });
+
+describe('DatabaseService schema handling offline', () => {
+  const MULTI_SCHEMA_SQL = `
+create type public.status as enum ('on', 'off');
+create type kit.status as enum ('kit_on');
+
+create table kit.settings (id uuid primary key, value text);
+create table other.hidden (id uuid primary key);
+create table kit.accounts (id uuid primary key, kit_column text);
+
+create or replace function other.hidden_fn() returns void language sql as $$ select 1; $$;
+`;
+
+  const files = {
+    '03-accounts.sql': ACCOUNTS_SQL,
+    '10-multi.sql': MULTI_SCHEMA_SQL,
+  };
+
+  it('lists file tables under the schema they declare, within includeSchemas', async () => {
+    const service = createDatabaseService(createDeps(files));
+    const { tables } = await service.getTables();
+
+    expect(tables.map((table) => `${table.schema}.${table.name}`)).toEqual([
+      'public.accounts',
+      'kit.settings',
+      'kit.accounts',
+    ]);
+  });
+
+  it('does not describe public.accounts with kit.accounts columns', async () => {
+    const service = createDatabaseService(createDeps(files));
+
+    const kit = await service.getTableInfo({ tableName: 'kit.accounts' });
+    expect(kit.columns.map((column) => column.name)).toEqual([
+      'id',
+      'kit_column',
+    ]);
+
+    const pub = await service.getTableInfo({ tableName: 'accounts' });
+    expect(pub.columns.map((column) => column.name)).toEqual(['id', 'name']);
+  });
+
+  it('leaves functions outside includeSchemas out of the fallback', async () => {
+    const service = createDatabaseService(createDeps(files));
+    const { functions } = await service.getFunctions();
+
+    expect(functions.map((fn) => fn.name)).toEqual(['has_role_on_account']);
+  });
+
+  it('keeps same-named enums from different schemas apart', async () => {
+    const service = createDatabaseService(createDeps(files));
+
+    expect((await service.listEnums()).enums).toEqual([
+      { name: 'status', values: ['on', 'off'], sourceFile: '10-multi.sql' },
+      { name: 'kit.status', values: ['kit_on'], sourceFile: '10-multi.sql' },
+    ]);
+    expect(
+      (await service.getEnumInfo({ enumName: 'public.status' })).values,
+    ).toEqual(['on', 'off']);
+    expect(
+      (await service.getEnumInfo({ enumName: 'kit.status' })).values,
+    ).toEqual(['kit_on']);
+  });
+
+  it('only reads .sql files through get_schema_content', async () => {
+    const service = createDatabaseService(createDeps());
+
+    await expect(
+      service.getSchemaContent({ fileName: 'secrets.json' }),
+    ).rejects.toThrow(/Invalid schema file name/);
+  });
+});

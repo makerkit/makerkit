@@ -14,46 +14,85 @@ import type {
  * forgiving rather than a full SQL parser.
  */
 
-const IDENTIFIER = '[a-zA-Z_][a-zA-Z0-9_]*';
+const IDENTIFIER = '[a-zA-Z_][a-zA-Z0-9_$]*';
+
+/** An unquoted identifier or a double-quoted one ("User", "my ""odd"" name"). */
+const NAME = `(?:"(?:[^"]|"")+"|${IDENTIFIER})`;
+
+/** `name` or `schema.name`, capturing the schema (optional) and the name. */
+const QUALIFIED = `(?:(${NAME})\\s*\\.\\s*)?(${NAME})`;
+
+export interface QualifiedName {
+  /** Null when the SQL left the name unqualified. */
+  schema: string | null;
+  name: string;
+}
+
+export function unquoteIdentifier(value: string) {
+  return value.startsWith('"') && value.endsWith('"') && value.length > 1
+    ? value.slice(1, -1).replace(/""/g, '"')
+    : value;
+}
+
+/**
+ * Split `schema.table`, `"My Schema"."Table"` or `table` into its parts,
+ * honouring quotes so dots inside quoted names do not split them.
+ */
+export function splitQualifiedName(value: string): string[] {
+  const parts = value.match(/"(?:[^"]|"")*"|[^.]+/g) ?? [];
+
+  return parts.map((part) => unquoteIdentifier(part.trim()));
+}
+
+function matchQualified(content: string, prefix: string): QualifiedName[] {
+  const seen = new Set<string>();
+  const names: QualifiedName[] = [];
+
+  for (const match of content.matchAll(
+    new RegExp(`${prefix}${QUALIFIED}`, 'gi'),
+  )) {
+    const schema = match[1] ? unquoteIdentifier(match[1]) : null;
+    const name = unquoteIdentifier(match[2]!);
+    const key = `${schema ?? ''}.${name}`;
+
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    names.push({ schema, name });
+  }
+
+  return names;
+}
+
+const CREATE_TABLE_PREFIX =
+  'create\\s+(?:(?:global\\s+|local\\s+)?(?:temp|temporary|unlogged)\\s+)?table\\s+(?:if\\s+not\\s+exists\\s+)?';
+
+/** Tables declared in the file, with the schema they were qualified with. */
+export function extractQualifiedTableNames(content: string): QualifiedName[] {
+  return matchQualified(content, CREATE_TABLE_PREFIX);
+}
 
 export function extractTableNames(content: string): string[] {
-  return uniqueTrailingIdentifiers(
-    content.match(
-      new RegExp(
-        `create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(?:${IDENTIFIER}\\.)?(${IDENTIFIER})`,
-        'gi',
-      ),
-    ),
-  );
+  return uniqueNames(extractQualifiedTableNames(content));
 }
 
 export function extractFunctionNames(content: string): string[] {
-  return uniqueTrailingIdentifiers(
-    content.match(
-      new RegExp(
-        `create\\s+(?:or\\s+replace\\s+)?function\\s+(?:${IDENTIFIER}\\.)?(${IDENTIFIER})`,
-        'gi',
-      ),
+  return uniqueNames(
+    matchQualified(content, 'create\\s+(?:or\\s+replace\\s+)?function\\s+'),
+  );
+}
+
+/** Tables referenced by foreign keys, leaving out Supabase's auth schema. */
+export function extractDependencies(content: string): string[] {
+  return uniqueNames(
+    matchQualified(content, 'references\\s+').filter(
+      (ref) => ref.schema !== 'auth',
     ),
   );
 }
 
-export function extractDependencies(content: string): string[] {
-  return uniqueTrailingIdentifiers(
-    content.match(
-      new RegExp(`references\\s+(?:${IDENTIFIER}\\.)?(${IDENTIFIER})`, 'gi'),
-    ),
-  ).filter((name) => name !== 'users');
-}
-
-function uniqueTrailingIdentifiers(matches: RegExpMatchArray | null) {
-  if (!matches) return [];
-
-  const names = matches
-    .map((match) => match.match(new RegExp(`(${IDENTIFIER})$`))?.[1] ?? '')
-    .filter(Boolean);
-
-  return [...new Set(names)];
+function uniqueNames(names: QualifiedName[]) {
+  return [...new Set(names.map((entry) => entry.name))];
 }
 
 /**
@@ -88,17 +127,35 @@ export function extractSectionHeader(content: string) {
   return { section, description };
 }
 
+/**
+ * The CREATE TABLE statement for `schema.tableName`. An unqualified
+ * `create table tableName` only counts when `allowUnqualified` is set, i.e.
+ * when `schema` is the schema unqualified names resolve to.
+ */
 export function extractTableDefinition(
   content: string,
   schema: string,
   tableName: string,
+  allowUnqualified = true,
 ): string | null {
+  const schemaPart = `${identifierPattern(schema)}\\s*\\.\\s*`;
   const tableRegex = new RegExp(
-    `create\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(?:${escapeRegex(schema)}\\.)?${escapeRegex(tableName)}\\s*\\([^;]*?\\);`,
+    `create\\s+(?:(?:global\\s+|local\\s+)?(?:temp|temporary|unlogged)\\s+)?table\\s+(?:if\\s+not\\s+exists\\s+)?` +
+      (allowUnqualified ? `(?:${schemaPart})?` : schemaPart) +
+      `${identifierPattern(tableName)}\\s*\\([^;]*?\\);`,
     'gis',
   );
 
   return content.match(tableRegex)?.[0] ?? null;
+}
+
+/** Matches an identifier written bare or double-quoted. */
+function identifierPattern(name: string) {
+  const quoted = escapeRegex(name.replace(/"/g, '""'));
+
+  return /^[a-zA-Z_][a-zA-Z0-9_$]*$/.test(name)
+    ? `(?:"${quoted}"|${escapeRegex(name)})`
+    : `"${quoted}"`;
 }
 
 export function parseColumns(tableDefinition: string): TableColumn[] {
@@ -108,10 +165,11 @@ export function parseColumns(tableDefinition: string): TableColumn[] {
 
   const columns: TableColumn[] = [];
 
-  const lines = contentMatch[1]!
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+  // Split on top-level commas, not lines, so one-line definitions and
+  // types such as numeric(10, 2) parse too.
+  const lines = splitTopLevel(contentMatch[1]!.replace(/--[^\n]*/g, '')).map(
+    (line) => line.replace(/\s+/g, ' '),
+  );
 
   for (const line of lines) {
     const lower = line.toLowerCase();
@@ -121,22 +179,24 @@ export function parseColumns(tableDefinition: string): TableColumn[] {
       lower.startsWith('primary key') ||
       lower.startsWith('foreign key') ||
       lower.startsWith('unique') ||
-      lower.startsWith('check')
+      lower.startsWith('check') ||
+      lower.startsWith('exclude')
     ) {
       continue;
     }
 
     const columnMatch = line.match(
-      new RegExp(`^(${IDENTIFIER})\\s+([^,\\s]+)(?:\\s+(.*))?`),
+      new RegExp(`^(${NAME})\\s+([^,\\s]+)(?:\\s+(.*))?`),
     );
 
     if (!columnMatch) continue;
 
-    const [, name, type, constraints = ''] = columnMatch;
+    const [, quotedName, type, constraints = ''] = columnMatch;
+    const name = unquoteIdentifier(quotedName!);
     const lowerConstraints = constraints.toLowerCase();
 
     columns.push({
-      name: name!,
+      name,
       type: type!.replace(/,$/, ''),
       nullable:
         !lowerConstraints.includes('not null') &&
@@ -144,17 +204,19 @@ export function parseColumns(tableDefinition: string): TableColumn[] {
       defaultValue: constraints.match(/default\s+([^,\s]+)/i)?.[1],
       isPrimaryKey: lowerConstraints.includes('primary key'),
       isForeignKey: lowerConstraints.includes('references'),
-      referencedTable: constraints.match(
-        new RegExp(`references\\s+(?:${IDENTIFIER}\\.)?(${IDENTIFIER})`, 'i'),
-      )?.[1],
-      referencedColumn: constraints
-        .match(
-          new RegExp(
-            `references\\s+(?:${IDENTIFIER}\\.)?${IDENTIFIER}\\s*\\(([^)]+)\\)`,
-            'i',
-          ),
-        )?.[1]
-        ?.trim(),
+      referencedTable: optionalUnquote(
+        constraints.match(new RegExp(`references\\s+${QUALIFIED}`, 'i'))?.[2],
+      ),
+      referencedColumn: optionalUnquote(
+        constraints
+          .match(
+            new RegExp(
+              `references\\s+(?:${NAME}\\s*\\.\\s*)?${NAME}\\s*\\(([^)]+)\\)`,
+              'i',
+            ),
+          )?.[1]
+          ?.trim(),
+      ),
     });
   }
 
@@ -165,23 +227,24 @@ export function parseForeignKeys(tableDefinition: string): TableForeignKey[] {
   const foreignKeys: TableForeignKey[] = [];
 
   const fkRegex = new RegExp(
-    `foreign\\s+key\\s*\\(([^)]+)\\)\\s*references\\s+(?:${IDENTIFIER}\\.)?(${IDENTIFIER})\\s*\\(([^)]+)\\)(?:\\s+on\\s+delete\\s+([a-z\\s]+?))?(?:\\s+on\\s+update\\s+([a-z\\s]+?))?(?=,|\\)|$)`,
+    `foreign\\s+key\\s*\\(([^)]+)\\)\\s*references\\s+(?:${NAME}\\s*\\.\\s*)?(${NAME})\\s*\\(([^)]+)\\)(?:\\s+on\\s+delete\\s+([a-z\\s]+?))?(?:\\s+on\\s+update\\s+([a-z\\s]+?))?(?=,|\\)|$)`,
     'gi',
   );
 
   let match: RegExpExecArray | null;
 
   while ((match = fkRegex.exec(tableDefinition)) !== null) {
-    const [, columns, referencedTable, referencedColumns, onDelete, onUpdate] =
+    const [, columns, quotedTable, referencedColumns, onDelete, onUpdate] =
       match;
 
-    const columnList = splitList(columns!);
+    const columnList = splitList(columns!).map(unquoteIdentifier);
+    const referencedTable = unquoteIdentifier(quotedTable!);
 
     foreignKeys.push({
       name: `fk_${referencedTable}_${columnList.join('_')}`,
       columns: columnList,
-      referencedTable: referencedTable!,
-      referencedColumns: splitList(referencedColumns!),
+      referencedTable,
+      referencedColumns: splitList(referencedColumns!).map(unquoteIdentifier),
       onDelete: onDelete?.trim(),
       onUpdate: onUpdate?.trim(),
     });
@@ -190,22 +253,40 @@ export function parseForeignKeys(tableDefinition: string): TableForeignKey[] {
   return foreignKeys;
 }
 
-export function parseIndexes(content: string, tableName: string): TableIndex[] {
+/**
+ * Indexes created on `tableName`. With `schema`, indexes on a same-named
+ * table qualified with another schema are left out; unqualified ones count
+ * when `allowUnqualified` is set.
+ */
+export function parseIndexes(
+  content: string,
+  tableName: string,
+  schema?: string,
+  allowUnqualified = true,
+): TableIndex[] {
   const indexes: TableIndex[] = [];
 
   const indexRegex = new RegExp(
-    `create\\s+(unique\\s+)?index\\s+(?:if\\s+not\\s+exists\\s+)?(${IDENTIFIER})\\s+on\\s+(?:${IDENTIFIER}\\.)?${escapeRegex(tableName)}\\s*(?:using\\s+(\\w+)\\s*)?\\(([^)]+)\\)`,
+    `create\\s+(unique\\s+)?index\\s+(?:concurrently\\s+)?(?:if\\s+not\\s+exists\\s+)?(${NAME})\\s+on\\s+(?:only\\s+)?(?:(${NAME})\\s*\\.\\s*)?${identifierPattern(tableName)}\\s*(?:using\\s+(\\w+)\\s*)?\\(([^)]+)\\)`,
     'gi',
   );
 
   let match: RegExpExecArray | null;
 
   while ((match = indexRegex.exec(content)) !== null) {
-    const [fullMatch, unique, indexName, method, columns] = match;
+    const [fullMatch, unique, indexName, indexSchema, method, columns] = match;
+
+    if (schema !== undefined) {
+      const matches = indexSchema
+        ? unquoteIdentifier(indexSchema) === schema
+        : allowUnqualified;
+
+      if (!matches) continue;
+    }
 
     indexes.push({
-      name: indexName!,
-      columns: splitList(columns!),
+      name: unquoteIdentifier(indexName!),
+      columns: splitList(columns!).map(unquoteIdentifier),
       unique: Boolean(unique),
       type: method?.toLowerCase() ?? 'btree',
       definition: fullMatch,
@@ -215,27 +296,33 @@ export function parseIndexes(content: string, tableName: string): TableIndex[] {
   return indexes;
 }
 
+export interface EnumDefinition extends QualifiedName {
+  values: string[];
+}
+
+export function parseEnumDefinitions(content: string): EnumDefinition[] {
+  const enumRegex = new RegExp(
+    `create\\s+type\\s+${QUALIFIED}\\s+as\\s+enum\\s*\\(([^)]*)\\)`,
+    'gi',
+  );
+
+  return [...content.matchAll(enumRegex)].map((match) => ({
+    schema: match[1] ? unquoteIdentifier(match[1]) : null,
+    name: unquoteIdentifier(match[2]!),
+    values: [...match[3]!.matchAll(/'((?:[^']|'')*)'/g)].map((value) =>
+      value[1]!.replace(/''/g, "'"),
+    ),
+  }));
+}
+
 export function parseEnums(
   content: string,
   sourceFile: string,
 ): Record<string, EnumInfo> {
   const enums: Record<string, EnumInfo> = {};
 
-  const enumRegex = new RegExp(
-    `create\\s+type\\s+(?:${IDENTIFIER}\\.)?(${IDENTIFIER})\\s+as\\s+enum\\s*\\(([^)]+)\\)`,
-    'gi',
-  );
-
-  let match: RegExpExecArray | null;
-
-  while ((match = enumRegex.exec(content)) !== null) {
-    const [, enumName, values] = match;
-
-    enums[enumName!] = {
-      name: enumName!,
-      values: splitList(values!).map((value) => value.replace(/['"]/g, '')),
-      sourceFile,
-    };
+  for (const { name, values } of parseEnumDefinitions(content)) {
+    enums[name] = { name, values, sourceFile };
   }
 
   return enums;
@@ -248,17 +335,22 @@ export function extractFunctionsFromContent(
 ): DatabaseFunction[] {
   const functions: DatabaseFunction[] = [];
 
-  // Capture everything between "returns" and the body delimiter, then pick
-  // the header apart: modifiers may sit on the same line or on their own.
-  const functionRegex =
-    /create\s+(?:or\s+replace\s+)?function\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s*\(([^)]*)\)\s*returns?\s+([^$]*?)\$\$([^$]*)\$\$/gi;
+  // Capture everything between "returns" and the body, then pick the header
+  // apart: modifiers may sit on the same line or on their own. Bodies may use
+  // any dollar-quote tag ($$, $function$) and contain $1-style parameters.
+  // Neither the parameter list nor the header can contain ";", which keeps a
+  // function without a dollar-quoted body from swallowing the next one.
+  const functionRegex = new RegExp(
+    `create\\s+(?:or\\s+replace\\s+)?function\\s+${QUALIFIED}\\s*\\(([^;]*?)\\)\\s*returns?\\s+([^;]*?)\\$(\\w*)\\$([\\s\\S]*?)\\$\\5\\$`,
+    'gi',
+  );
 
   let match: RegExpExecArray | null;
 
   while ((match = functionRegex.exec(content)) !== null) {
-    const [, fullName, params, header, body] = match;
+    const [, quotedSchema, quotedName, params, header, , body] = match;
 
-    if (!fullName || !header) continue;
+    if (!quotedName || !header) continue;
 
     const returnType = header
       .split(
@@ -272,19 +364,15 @@ export function extractFunctionsFromContent(
       ? 'definer'
       : 'invoker';
 
-    const nameParts = fullName.split('.');
-    const functionName = nameParts[nameParts.length - 1]!;
-    const schema =
-      nameParts.length > 1
-        ? nameParts[0]!
-        : (options.defaultSchema ?? 'public');
+    const functionName = unquoteIdentifier(quotedName);
+    const schema = quotedSchema
+      ? unquoteIdentifier(quotedSchema)
+      : (options.defaultSchema ?? 'public');
 
-    const before = content.substring(
-      Math.max(0, match.index - 500),
-      match.index,
+    const description = extractDescription(
+      content.substring(0, match.index),
+      body ?? '',
     );
-
-    const description = extractDescription(before, body ?? '');
 
     functions.push({
       name: functionName,
@@ -310,19 +398,21 @@ export function parseParameterList(paramString: string): FunctionParameter[] {
 
   const parameters: FunctionParameter[] = [];
 
-  for (const raw of splitList(paramString)) {
+  for (const raw of splitTopLevel(paramString)) {
     const match = raw.match(
       new RegExp(
-        `^(?:(?:IN|OUT|INOUT|VARIADIC)\\s+)?(${IDENTIFIER})\\s+([^=]+?)(?:\\s+DEFAULT\\s+(.+))?$`,
-        'i',
+        `^(?:(?:IN|OUT|INOUT|VARIADIC)\\s+)?(${NAME})\\s+(.+?)(?:\\s+DEFAULT\\s+|\\s*=\\s*)(.+)$|^(?:(?:IN|OUT|INOUT|VARIADIC)\\s+)?(${NAME})\\s+(.+)$`,
+        'is',
       ),
     );
 
     if (match) {
-      const [, name, type, defaultValue] = match;
+      const name = match[1] ?? match[4]!;
+      const type = match[2] ?? match[5]!;
+      const defaultValue = match[3];
 
       parameters.push({
-        name: name!.trim(),
+        name: unquoteIdentifier(name.trim()),
         type: type!.trim(),
         defaultValue: defaultValue?.trim(),
       });
@@ -343,12 +433,34 @@ export function parseParameterList(paramString: string): FunctionParameter[] {
   return parameters;
 }
 
+/**
+ * The `--` comment lines directly above the function (blank lines allowed in
+ * between), else the first comment inside the body. A comment further up
+ * belongs to whatever statement it sits on.
+ */
 function extractDescription(beforeFunction: string, body: string): string {
-  const commentMatch = beforeFunction.match(/--\s*(.+?)(?:\n|$)/);
+  const lines = beforeFunction.split('\n');
 
-  if (commentMatch?.[1]) {
-    return commentMatch[1].trim();
+  // The text before the match ends with the partial line holding "create".
+  if (lines[lines.length - 1]!.trim() === '') lines.pop();
+
+  const comments: string[] = [];
+
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const line = lines[index]!.trim();
+
+    if (line === '' && comments.length === 0) continue;
+
+    const comment = line.match(/^--\s*(.*)$/);
+
+    if (!comment) break;
+
+    comments.unshift(comment[1]!.trim());
   }
+
+  const leading = comments.find(Boolean);
+
+  if (leading) return leading;
 
   const bodyCommentMatch = body.match(/--\s*(.+?)(?:\n|$)/);
 
@@ -446,6 +558,40 @@ function splitList(value: string) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+/** Split on commas that are not inside parentheses or quotes. */
+function splitTopLevel(value: string) {
+  const items: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let current = '';
+
+  for (const char of value) {
+    if (quote) {
+      if (char === quote) quote = null;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === '(') {
+      depth++;
+    } else if (char === ')') {
+      depth--;
+    } else if (char === ',' && depth === 0) {
+      items.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  items.push(current);
+
+  return items.map((item) => item.trim()).filter(Boolean);
+}
+
+function optionalUnquote(value: string | undefined) {
+  return value === undefined ? undefined : unquoteIdentifier(value);
 }
 
 function escapeRegex(value: string) {

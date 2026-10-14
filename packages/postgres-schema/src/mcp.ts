@@ -141,7 +141,7 @@ export function registerPostgresSchemaTools(
     {
       title: 'List database functions',
       description:
-        'List database functions in the public and kit schemas with parameters, return type, SECURITY DEFINER/INVOKER and source file. Uses the live database when available, schema files otherwise.',
+        'List database functions in the configured schemas with parameters, return type, SECURITY DEFINER/INVOKER and source file. Uses the live database when available, schema files otherwise.',
       inputSchema: EmptyInputSchema,
       outputSchema: GetDatabaseFunctionsOutputSchema,
       annotations: READ_ONLY_TOOL,
@@ -223,7 +223,7 @@ export function registerPostgresSchemaTools(
     {
       title: 'List tables',
       description:
-        'List project tables in the public and kit schemas with their source schema file and topic.',
+        'List tables in the configured schemas with their source schema file and topic.',
       inputSchema: EmptyInputSchema,
       outputSchema: GetDatabaseTablesOutputSchema,
       annotations: READ_ONLY_TOOL,
@@ -242,7 +242,7 @@ export function registerPostgresSchemaTools(
     {
       title: 'Describe a table',
       description:
-        'Columns, foreign keys, indexes and the CREATE TABLE statement for one table. Live database data when available, schema-file parsing otherwise.',
+        'Columns, foreign keys, indexes and the CREATE TABLE statement for one table (tableName may be schema.table). Live database data when available, schema-file parsing otherwise.',
       inputSchema: GetTableInfoInputSchema,
       outputSchema: GetTableInfoOutputSchema,
       annotations: READ_ONLY_TOOL,
@@ -262,7 +262,8 @@ export function registerPostgresSchemaTools(
     name('get_enum_info'),
     {
       title: 'Describe an enum',
-      description: 'Get one enum type with all of its values.',
+      description:
+        'Get one enum type with all of its values (name as listed, or schema.name).',
       inputSchema: GetEnumInfoInputSchema,
       outputSchema: GetEnumInfoOutputSchema,
       annotations: READ_ONLY_TOOL,
@@ -282,7 +283,8 @@ export function registerPostgresSchemaTools(
     name('get_all_enums'),
     {
       title: 'List enums',
-      description: 'List every enum type in the public schema with its values.',
+      description:
+        'List every enum type in the configured schemas with its values.',
       inputSchema: EmptyInputSchema,
       outputSchema: GetAllEnumsOutputSchema,
       annotations: READ_ONLY_TOOL,

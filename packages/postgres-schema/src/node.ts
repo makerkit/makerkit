@@ -23,7 +23,7 @@ export function createPostgresSchemaDeps(
 ): DatabaseDeps {
   let client: ReturnType<typeof postgres> | null = null;
 
-  const resolveTarget = () => {
+  const resolveUrl = () => {
     const url = options.databaseUrl ?? process.env['DATABASE_URL'];
 
     if (!url) {
@@ -32,13 +32,7 @@ export function createPostgresSchemaDeps(
       );
     }
 
-    const parsed = new URL(url);
-
-    return {
-      url,
-      host: parsed.hostname || '127.0.0.1',
-      port: Number(parsed.port) || 5432,
-    };
+    return url;
   };
 
   return {
@@ -55,10 +49,13 @@ export function createPostgresSchemaDeps(
       return { mtime: result.mtime };
     },
     async query(text, params = []) {
-      const { url, host, port } = resolveTarget();
+      const url = resolveUrl();
+      const target = probeTarget(url);
 
-      if (!(await isPortOpen(host, port))) {
-        throw new Error(`Database is not reachable at ${host}:${port}`);
+      if (target && !(await isPortOpen(target.host, target.port))) {
+        throw new Error(
+          `Database is not reachable at ${target.host}:${target.port}`,
+        );
       }
 
       client ??= postgres(url, {
@@ -79,6 +76,42 @@ export function createPostgresSchemaDeps(
       await current?.end({ timeout: 5 });
     },
   };
+}
+
+/**
+ * The TCP host and port to probe before connecting, mirroring how postgres.js
+ * reads the URL. Null when a probe would be wrong (unix sockets, several
+ * hosts, a host left to PGHOST, URLs `URL` cannot parse): postgres.js then
+ * connects without one.
+ */
+export function probeTarget(
+  url: string,
+): { host: string; port: number } | null {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+
+  // WHATWG URL keeps the brackets around IPv6 literals; net.connect does not
+  // accept them.
+  const host = safeDecode(parsed.hostname).replace(/^\[(.*)\]$/, '$1');
+
+  if (!host || host.includes('/') || host.includes(',')) return null;
+
+  const port = Number(parsed.port || process.env['PGPORT']) || 5432;
+
+  return { host, port };
+}
+
+function safeDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function isPortOpen(host: string, port: number) {

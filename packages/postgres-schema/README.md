@@ -12,7 +12,7 @@ Works with any Postgres database: Supabase, Neon, RDS, local Docker, and apps us
 | `get_database_tables` | Every table in the included schemas |
 | `get_table_info` | Columns, foreign keys and indexes for one table (`schema.table` accepted) |
 | `get_database_functions` / `get_function_details` / `search_database_functions` | Functions with parameters, return type and security level |
-| `get_all_enums` / `get_enum_info` | Enum types and their values |
+| `get_all_enums` / `get_enum_info` | Enum types and their values (a same-named enum outside the default schema is listed as `schema.name`) |
 | `get_schema_files` / `get_schema_content` / `get_schemas_by_topic` / `get_schema_by_section` | Your SQL schema files (only when `schemaFiles` is configured) |
 
 When the database is not running, the tools fall back to the schema files if you configured them.
@@ -40,7 +40,8 @@ createPostgresSchemaDeps(root, {
   databaseUrl,
   settings: {
     includeSchemas: ['public'], // default
-    excludeTables: ['_prisma_migrations'],
+    defaultSchema: 'public', // default; used for unqualified names
+    excludeTables: ['_prisma_migrations'], // or 'schema.table' for one schema
     schemaFiles: { dir: 'supabase/schemas' },
     functionPurposes: { has_role_on_account: 'Check access to an account' },
   },

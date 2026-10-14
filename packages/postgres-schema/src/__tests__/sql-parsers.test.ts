@@ -5,10 +5,12 @@ import {
   extractDependencies,
   extractFunctionNames,
   extractFunctionsFromContent,
+  extractQualifiedTableNames,
   extractSectionHeader,
   extractTableDefinition,
   extractTableNames,
   parseColumns,
+  parseEnumDefinitions,
   parseEnums,
   parseForeignKeys,
   parseIndexes,
@@ -216,5 +218,122 @@ describe('determineTopic', () => {
     expect(determineTopic('99-custom.sql', 'create table widgets')).toBe(
       'general',
     );
+  });
+});
+
+describe('quoted identifiers', () => {
+  const QUOTED = `
+create table if not exists public."UserProfile" (
+  "userId" text not null references public."User"("id"),
+  bio text
+);
+create or replace function public."getProfile"() returns void language sql as $$ select 1; $$;
+`;
+
+  it('captures the quoted table and function name, not the schema', () => {
+    expect(extractTableNames(QUOTED)).toEqual(['UserProfile']);
+    expect(extractQualifiedTableNames(QUOTED)).toEqual([
+      { schema: 'public', name: 'UserProfile' },
+    ]);
+    expect(extractFunctionNames(QUOTED)).toEqual(['getProfile']);
+    expect(extractDependencies(QUOTED)).toEqual(['User']);
+  });
+
+  it('finds and parses a quoted table definition', () => {
+    const definition = extractTableDefinition(QUOTED, 'public', 'UserProfile');
+
+    expect(definition).not.toBeNull();
+    expect(parseColumns(definition!)[0]).toMatchObject({
+      name: 'userId',
+      nullable: false,
+      referencedTable: 'User',
+      referencedColumn: 'id',
+    });
+  });
+});
+
+describe('schema-qualified lookups', () => {
+  const TWO_SCHEMAS = `
+create table kit.notes (id uuid primary key, kit_only text);
+create table notes (id uuid primary key, title text);
+create index ix_kit_notes on kit.notes (kit_only);
+create index ix_notes_title on notes (title);
+`;
+
+  it('keeps tables and indexes from another schema out', () => {
+    expect(extractQualifiedTableNames(TWO_SCHEMAS)).toEqual([
+      { schema: 'kit', name: 'notes' },
+      { schema: null, name: 'notes' },
+    ]);
+
+    expect(extractTableDefinition(TWO_SCHEMAS, 'public', 'notes')).toMatch(
+      /^create table notes/,
+    );
+    expect(
+      extractTableDefinition(TWO_SCHEMAS, 'billing', 'notes', false),
+    ).toBeNull();
+
+    expect(
+      parseIndexes(TWO_SCHEMAS, 'notes', 'public').map((index) => index.name),
+    ).toEqual(['ix_notes_title']);
+    expect(
+      parseIndexes(TWO_SCHEMAS, 'notes', 'kit', false).map(
+        (index) => index.name,
+      ),
+    ).toEqual(['ix_kit_notes']);
+  });
+
+  it('keeps public.users as a dependency and drops auth.users only', () => {
+    expect(
+      extractDependencies(
+        'user_id uuid references auth.users(id), profile references public.users(id)',
+      ),
+    ).toEqual(['users']);
+    expect(extractDependencies('id uuid references auth.users')).toEqual([]);
+  });
+});
+
+describe('function extraction edge cases', () => {
+  it('reads $function$ bodies, $1 parameters and parenthesised types', () => {
+    const functions = extractFunctionsFromContent(
+      `
+CREATE OR REPLACE FUNCTION public.find_user(email varchar(255), price numeric(10, 2) = 0)
+ RETURNS uuid
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  select id from public.users where email = $1;
+$function$;
+`,
+      'dump.sql',
+    );
+
+    expect(functions).toHaveLength(1);
+    expect(functions[0]).toMatchObject({
+      name: 'find_user',
+      returnType: 'uuid',
+      securityLevel: 'definer',
+      parameters: [
+        { name: 'email', type: 'varchar(255)' },
+        { name: 'price', type: 'numeric(10, 2)', defaultValue: '0' },
+      ],
+    });
+  });
+
+  it('only uses the comment directly above a function as its description', () => {
+    const functions = extractFunctionsFromContent(SCHEMA, 'notes.sql');
+
+    expect(functions[1]).toMatchObject({
+      name: 'purge_notes',
+      description: 'No description available',
+    });
+  });
+});
+
+describe('parseEnumDefinitions', () => {
+  it('keeps the schema and values containing commas or quotes', () => {
+    expect(
+      parseEnumDefinitions("create type kit.label as enum ('a, b', 'it''s');"),
+    ).toEqual([{ schema: 'kit', name: 'label', values: ['a, b', "it's"] }]);
   });
 });

@@ -88,6 +88,42 @@ describe('settings', () => {
 
     expect(tables.map((table) => table.name)).toEqual(['User']);
   });
+
+  it('accepts schema-qualified excluded tables', async () => {
+    const { deps } = createDeps(
+      { excludeTables: ['public._prisma_migrations'] },
+      [
+        ...PRISMA_TABLES,
+        { table_name: '_prisma_migrations', table_schema: 'audit' },
+      ],
+    );
+
+    const { tables } = await createDatabaseService(deps).getTables();
+
+    expect(tables.map((table) => `${table.schema}.${table.name}`)).toEqual([
+      'public.User',
+      'audit._prisma_migrations',
+    ]);
+  });
+
+  it('uses defaultSchema for get_table_info calls without a schema', async () => {
+    const { deps, calls } = createDeps(
+      { defaultSchema: 'app' },
+      [],
+      USER_COLUMNS,
+    );
+    const fake = createFakeMcpServer();
+
+    registerPostgresSchemaTools(fake.server, createDatabaseService(deps));
+
+    const result = await fake.call('get_table_info', { tableName: 'User' });
+
+    expect(result.structuredContent).toMatchObject({ schema: 'app' });
+    expect(
+      calls.find((call) => call.text.includes('information_schema.columns'))
+        ?.params,
+    ).toEqual(['app', 'User']);
+  });
 });
 
 describe('getTableInfo without schema files', () => {
