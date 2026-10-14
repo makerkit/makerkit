@@ -19,7 +19,8 @@
         "^build"
       ],
       "env": [
-        "SUPABASE_*"
+        "SUPABASE_*",
+        "TEST_DATABASE_URL"
       ]
     },
     "@makerkit/prd-mcp#test": {
