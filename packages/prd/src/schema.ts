@@ -1,5 +1,6 @@
 import { z } from 'zod/v3';
 
+import { TEMPLATE_IDS } from './templates';
 import type { StructuredPRD, UserStory } from './types';
 
 const FilenameSchema = z
@@ -64,6 +65,12 @@ export const CreatePrdInputSchema = z.object({
   outOfScope: z.array(z.string()).optional(),
   assumptions: z.array(z.string()).optional(),
   openQuestions: z.array(z.string()).optional(),
+  template: z
+    .enum(TEMPLATE_IDS)
+    .optional()
+    .describe(
+      'Start from a template (see list_templates). Values given here win.',
+    ),
 });
 
 export const CreatePrdOutputSchema = z.object({
@@ -571,6 +578,21 @@ export const CheckPlanOutputSchema = z.object({
 });
 
 export type CheckPlanOutput = z.infer<typeof CheckPlanOutputSchema>;
+
+export const ListTemplatesInputSchema = z.object({});
+
+export const ListTemplatesOutputSchema = z.object({
+  templates: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string(),
+      when_to_use: z.string(),
+    }),
+  ),
+});
+
+export type ListTemplatesOutput = z.infer<typeof ListTemplatesOutputSchema>;
 
 export type PrdSummary = z.infer<typeof PrdSummarySchema>;
 export type ListPrdsOutput = z.infer<typeof ListPrdsOutputSchema>;

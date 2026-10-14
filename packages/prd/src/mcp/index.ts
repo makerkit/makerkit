@@ -51,7 +51,10 @@ import {
   PhasesOutputSchema,
   CheckPlanInputSchema,
   CheckPlanOutputSchema,
+  ListTemplatesInputSchema,
+  ListTemplatesOutputSchema,
 } from '../schema';
+import { TEMPLATE_IDS, getTemplate } from '../templates';
 import {
   DESTRUCTIVE_TOOL,
   IDEMPOTENT_MUTATING_TOOL,
@@ -366,6 +369,25 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
   );
 
   server.registerTool(
+    'list_templates',
+    {
+      title: 'List PRD templates',
+      description:
+        'Starting points for create_prd (e.g. a SaaS feature, an internal tool, an integration, a first version). Each says when to use it.',
+      inputSchema: ListTemplatesInputSchema,
+      outputSchema: ListTemplatesOutputSchema,
+      annotations: READ_ONLY_TOOL,
+    },
+    async () => {
+      try {
+        return buildStructuredResponse(service.listTemplates());
+      } catch (error) {
+        return buildErrorResponse('list_templates', error);
+      }
+    },
+  );
+
+  server.registerTool(
     'check_plan',
     {
       title: 'Check what the plan is missing',
@@ -616,13 +638,20 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
           .string()
           .optional()
           .describe('Existing PRD to keep shaping, inside .prds'),
+        template: z
+          .enum(TEMPLATE_IDS)
+          .optional()
+          .describe('Kind of work, see list_templates'),
       },
     },
-    ({ idea, filename }) => ({
+    ({ idea, filename, template }) => ({
       messages: [
         {
           role: 'user',
-          content: { type: 'text', text: shapePrdPrompt(idea, filename) },
+          content: {
+            type: 'text',
+            text: shapePrdPrompt(idea, filename, template),
+          },
         },
       ],
     }),
@@ -684,7 +713,13 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
   );
 }
 
-function shapePrdPrompt(idea?: string, filename?: string) {
+function shapePrdPrompt(
+  idea?: string,
+  filename?: string,
+  templateId?: (typeof TEMPLATE_IDS)[number],
+) {
+  const template = templateId ? getTemplate(templateId) : null;
+
   const start = filename
     ? `Keep shaping the PRD "${filename}". Read it with get_prd first and continue from its open questions.`
     : idea
@@ -700,6 +735,10 @@ function shapePrdPrompt(idea?: string, filename?: string) {
     '- Look up facts yourself (the codebase, existing PRDs, docs) instead of asking. Only decisions go to the user.',
     '- After each round, record what was decided before asking the next round.',
     '- Stop when no undecided questions remain, and confirm with the user before slicing the work.',
+    '',
+    template
+      ? `This is a "${template.name}" (${template.description}) Create the PRD with template "${template.id}", and make sure the interview covers: ${template.interviewFocus.join(' ')}`
+      : 'If you are unsure what kind of work this is, call list_templates and suggest one.',
     '',
     'Order of the rounds, broad to detailed:',
     '1. What we are building and for whom (create_prd once this is clear, if there is no PRD yet).',

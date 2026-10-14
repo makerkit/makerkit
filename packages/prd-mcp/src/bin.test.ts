@@ -42,7 +42,7 @@ describe('makerkit-prd-mcp', () => {
     const { tools } = await client.listTools();
     const { prompts } = await client.listPrompts();
 
-    expect(tools).toHaveLength(25);
+    expect(tools).toHaveLength(26);
     expect(tools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining([
         'create_prd',

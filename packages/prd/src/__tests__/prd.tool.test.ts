@@ -102,6 +102,7 @@ describe('registerPRDTools', () => {
       'get_project_status',
       'get_story',
       'list_prds',
+      'list_templates',
       'reorder_phases',
       'resolve_open_question',
       'update_phase',

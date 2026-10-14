@@ -57,6 +57,7 @@ import type {
   GetStoryInput,
   GetStoryOutput,
   CheckPlanOutput,
+  ListTemplatesOutput,
   UpdatePrdSectionInput,
   UpdatePrdSectionOutput,
   AddDecisionInput,
@@ -70,6 +71,7 @@ import type {
   ReorderPhasesInput,
   PhasesOutput,
 } from './schema';
+import { PRD_TEMPLATES, getTemplate } from './templates';
 import type { StoryComplexity, StructuredPRD, UserStory } from './types';
 
 import { join } from 'node:path';
@@ -173,6 +175,7 @@ export class PrdService {
     }
 
     const today = this.today();
+    const defaults = input.template ? getTemplate(input.template).defaults : {};
 
     const prd: StructuredPRD = {
       introduction: {
@@ -190,17 +193,20 @@ export class PrdService {
         keyFeatures: input.keyFeatures,
         successMetrics: input.successMetrics,
       },
-      nonGoals: input.nonGoals ?? [],
-      outOfScope: input.outOfScope ?? [],
+      nonGoals: input.nonGoals ?? defaults.nonGoals ?? [],
+      outOfScope: input.outOfScope ?? defaults.outOfScope ?? [],
       assumptions: input.assumptions ?? [],
-      openQuestions: input.openQuestions ?? [],
+      openQuestions: [
+        ...(input.openQuestions ?? []),
+        ...(defaults.openQuestions ?? []),
+      ],
       risks: [],
       dependencies: [],
       userStories: [],
       customPhases: [],
       storyTraceability: [],
       technicalRequirements: {
-        constraints: [],
+        constraints: defaults.technicalConstraints ?? [],
         integrationNeeds: [],
         complianceRequirements: [],
       },
@@ -210,13 +216,16 @@ export class PrdService {
         permissions: [],
         integrationBoundaries: [],
       },
-      acceptanceCriteria: { global: [], qualityStandards: [] },
+      acceptanceCriteria: {
+        global: defaults.globalAcceptanceCriteria ?? [],
+        qualityStandards: defaults.qualityStandards ?? [],
+      },
       constraints: { timeline: '', resources: [], nonNegotiables: [] },
       rolloutPlan: {
         featureFlags: [],
         migrationPlan: [],
-        rolloutPhases: [],
-        rollbackConditions: [],
+        rolloutPhases: defaults.rolloutPhases ?? [],
+        rollbackConditions: defaults.rollbackConditions ?? [],
       },
       measurementPlan: {
         events: [],
@@ -228,7 +237,11 @@ export class PrdService {
       decisionLog: [],
       glossary: [],
       agentTaskPackets: [],
-      changeLog: ['Initial PRD created'],
+      changeLog: [
+        input.template
+          ? `Initial PRD created from the ${input.template} template`
+          : 'Initial PRD created',
+      ],
       metadata: {
         version: '2.0',
         created: today,
@@ -472,6 +485,17 @@ export class PrdService {
     );
 
     return { suggestions, total: suggestions.length };
+  }
+
+  listTemplates(): ListTemplatesOutput {
+    return {
+      templates: PRD_TEMPLATES.map((template) => ({
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        when_to_use: template.whenToUse,
+      })),
+    };
   }
 
   async checkPlan(filename: string): Promise<CheckPlanOutput> {
