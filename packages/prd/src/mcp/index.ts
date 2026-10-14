@@ -49,6 +49,8 @@ import {
   DeletePhaseInputSchema,
   ReorderPhasesInputSchema,
   PhasesOutputSchema,
+  CheckPlanInputSchema,
+  CheckPlanOutputSchema,
 } from '../schema';
 import {
   DESTRUCTIVE_TOOL,
@@ -359,6 +361,27 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
         );
       } catch (error) {
         return buildErrorResponse('get_project_status', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'check_plan',
+    {
+      title: 'Check what the plan is missing',
+      description:
+        'A checklist of what the PRD still needs before and during the build. "required" items (no stories, stories without acceptance criteria, no scope limits) mean it is not ready to build; "recommended" items improve it. Each item names the section to change and, when relevant, the stories.',
+      inputSchema: CheckPlanInputSchema,
+      outputSchema: CheckPlanOutputSchema,
+      annotations: READ_ONLY_TOOL,
+    },
+    async (input) => {
+      try {
+        const { filename } = CheckPlanInputSchema.parse(input);
+
+        return buildStructuredResponse(await service.checkPlan(filename));
+      } catch (error) {
+        return buildErrorResponse('check_plan', error);
       }
     },
   );

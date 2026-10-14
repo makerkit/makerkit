@@ -554,6 +554,24 @@ export const PhasesOutputSchema = z.object({
   ),
 });
 
+export const CheckPlanInputSchema = z.object({ filename: FilenameSchema });
+
+export const CheckPlanOutputSchema = z.object({
+  /** False while any required item is open. */
+  ready_to_build: z.boolean(),
+  items: z.array(
+    z.object({
+      id: z.string(),
+      section: z.string(),
+      message: z.string(),
+      severity: z.enum(['required', 'recommended']),
+      storyIds: z.array(z.string()).optional(),
+    }),
+  ),
+});
+
+export type CheckPlanOutput = z.infer<typeof CheckPlanOutputSchema>;
+
 export type PrdSummary = z.infer<typeof PrdSummarySchema>;
 export type ListPrdsOutput = z.infer<typeof ListPrdsOutputSchema>;
 export type GetPrdInput = z.infer<typeof GetPrdInputSchema>;

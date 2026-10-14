@@ -88,6 +88,7 @@ describe('registerPRDTools', () => {
       'add_story_log',
       'add_user_story',
       'assign_story_to_phase',
+      'check_plan',
       'create_custom_phase',
       'create_prd',
       'delete_phase',

@@ -1,4 +1,5 @@
 import { formatPrdMarkdown } from './markdown';
+import { checkPlan } from './plan-check';
 import {
   addDecision,
   addGlossaryTerm,
@@ -55,6 +56,7 @@ import type {
   GetNextStoryOutput,
   GetStoryInput,
   GetStoryOutput,
+  CheckPlanOutput,
   UpdatePrdSectionInput,
   UpdatePrdSectionOutput,
   AddDecisionInput,
@@ -465,62 +467,15 @@ export class PrdService {
   async getImprovementSuggestions(
     filename: string,
   ): Promise<GetImprovementSuggestionsOutput> {
-    const prd = await this.load(this.safeName(filename));
-    const suggestions: string[] = [];
-
-    if (prd.userStories.length === 0) {
-      suggestions.push('Add user stories to define specific functionality');
-    }
-
-    if (prd.solutionOverview.successMetrics.length === 0) {
-      suggestions.push('Define success metrics to measure progress');
-    }
-
-    if (prd.acceptanceCriteria.global.length === 0) {
-      suggestions.push('Add global acceptance criteria for quality standards');
-    }
-
-    if (prd.nonGoals.length === 0 || prd.outOfScope.length === 0) {
-      suggestions.push(
-        'Define both non-goals and out-of-scope items to reduce implementation drift',
-      );
-    }
-
-    if (prd.openQuestions.length > 0) {
-      suggestions.push(
-        `${prd.openQuestions.length} open questions remain unresolved`,
-      );
-    }
-
-    if (prd.measurementPlan.targetMetrics.length === 0) {
-      suggestions.push(
-        'Define target metrics in measurementPlan to validate delivery impact',
-      );
-    }
-
-    if (prd.rolloutPlan.rolloutPhases.length === 0) {
-      suggestions.push('Add rollout phases and rollback conditions');
-    }
-
-    const vague = prd.userStories.filter(
-      (s) => s.acceptanceCriteria.length < 2,
+    const suggestions = (await this.checkPlan(filename)).items.map(
+      (item) => item.message,
     );
 
-    if (vague.length > 0) {
-      suggestions.push(
-        `${vague.length} stories need more detailed acceptance criteria`,
-      );
-    }
-
-    const blocked = prd.userStories.filter((s) => s.status === 'blocked');
-
-    if (blocked.length > 0) {
-      suggestions.push(
-        `${blocked.length} stories are blocked and need attention`,
-      );
-    }
-
     return { suggestions, total: suggestions.length };
+  }
+
+  async checkPlan(filename: string): Promise<CheckPlanOutput> {
+    return checkPlan(await this.load(this.safeName(filename)));
   }
 
   async getProjectStatus(filename: string): Promise<GetProjectStatusOutput> {

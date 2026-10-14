@@ -20,3 +20,4 @@ Planning tools for shaping a PRD after it is created:
 - A PRD `glossary` and per-story `testSeams`.
 - `shape_prd` MCP prompt: a round-by-round interview that writes each decision into the PRD, then slices the work into thin stories and phases.
 - `review_story` MCP prompt: checks a story's changes against its acceptance criteria, non-goals, out-of-scope items and test seams, and reports approve or send back.
+- `check_plan`: a structured checklist of what a PRD is missing (`required` items block the build, `recommended` items improve it), each naming the section and stories involved. `get_improvement_suggestions` now uses it and also reports stories without test seams and, past five stories, stories outside a phase.
