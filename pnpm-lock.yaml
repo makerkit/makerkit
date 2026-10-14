@@ -249,6 +249,9 @@ importers:
 
   packages/prd:
     dependencies:
+      '@makerkit/repo-checks':
+        specifier: workspace:^
+        version: link:../repo-checks/dist
       zod:
         specifier: 4.6.5
         version: 4.6.5

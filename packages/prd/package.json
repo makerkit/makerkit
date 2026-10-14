@@ -45,6 +45,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@makerkit/repo-checks": "workspace:^",
     "zod": "^3.25.0 || ^4.0.0"
   },
   "devDependencies": {

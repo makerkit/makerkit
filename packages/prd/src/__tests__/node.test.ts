@@ -83,6 +83,26 @@ describe('createScriptVerifier', () => {
   });
 });
 
+describe('createScriptVerifier diagnostics', () => {
+  it('returns file-and-line diagnostics for a failing typecheck', async () => {
+    const root = await createProject({
+      typecheck:
+        'node -e "console.log(\'src/notes.ts(12,5): error TS2322: Type string is not assignable to type number.\'); process.exit(2)"',
+    });
+
+    const result = await createScriptVerifier(root)();
+
+    expect(result.passed).toBe(false);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        file: 'src/notes.ts',
+        line: 12,
+        severity: 'error',
+      }),
+    ]);
+  });
+});
+
 describe('createNodePrdDeps', () => {
   it('uses an injected verifier instead of running scripts', async () => {
     const root = await createProject({
