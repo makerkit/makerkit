@@ -606,6 +606,34 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
   );
 
   server.registerPrompt(
+    'review_story',
+    {
+      title: 'Review a story against its spec',
+      description:
+        'Check the changes made for a story against its acceptance criteria, scope limits and test seams, and report a verdict.',
+      argsSchema: {
+        filename: z.string().describe('PRD file name inside .prds'),
+        storyId: z.string().describe('Story id such as US003'),
+        base: z
+          .string()
+          .optional()
+          .describe('Git ref the story started from. Defaults to HEAD.'),
+      },
+    },
+    ({ filename, storyId, base }) => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: reviewStoryPrompt(filename, storyId, base),
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
     'implement_story',
     {
       title: 'Implement a PRD story',
@@ -662,6 +690,31 @@ function shapePrdPrompt(idea?: string, filename?: string) {
     '- Each story is a thin slice through every layer that a person can try once it is done, and that fits in one agent session. Put refactoring needed by later stories in its own earlier story.',
     '- Add stories with add_user_story, including testSeams: the public entry points the tests will exercise.',
     '- Set dependencies with update_user_story, group stories into phases (create_custom_phase, assign_story_to_phase) in the order they should be built, and confirm the breakdown with the user.',
+  ].join('\n');
+}
+
+function reviewStoryPrompt(filename: string, storyId: string, base?: string) {
+  const diff = base
+    ? `git diff ${base}`
+    : 'git diff HEAD (plus untracked files from git status)';
+
+  return [
+    `Review the work done for story ${storyId} in the PRD "${filename}". You are checking it against its spec, not reviewing code style: a separate review covers code quality.`,
+    '',
+    `1. Call get_story for the acceptance criteria, non-goals, out-of-scope items, test seams and the story log. Read the changes with ${diff}.`,
+    '2. For each acceptance criterion, decide met, partly met or not met, and cite the file or test that shows it.',
+    '3. Scope: list changes the story did not ask for, especially anything in non-goals or out of scope.',
+    '4. Tests: check that tests exercise the listed test seams and cover the criteria through public behaviour.',
+    '5. Check that the story log matches what changed. Flag claims in whatsNew that the changes do not support.',
+    '',
+    'Report:',
+    '- Verdict: "approve" or "send back".',
+    '- Criteria: one line per criterion with its result and evidence.',
+    '- Scope: extra or missing work, or "none".',
+    '- Tests: gaps, or "none".',
+    '- If sending back: a short list of specific fixes, written for the agent that will make them.',
+    '',
+    'Do not change the story status and do not edit code. A person decides.',
   ].join('\n');
 }
 

@@ -334,5 +334,16 @@ describe('MCP registration', () => {
     expect(text).toContain('get_next_story');
     expect(text).toContain('add_story_log');
     expect(text).not.toContain('run_checks');
+
+    const review = fake.prompts.find((entry) => entry.name === 'review_story');
+    const reviewText = review!.handler({
+      filename,
+      storyId: 'US001',
+      base: 'main',
+    }).messages[0]!.content.text;
+
+    expect(reviewText).toContain('git diff main');
+    expect(reviewText).toContain('get_story');
+    expect(reviewText).toMatch(/Do not change the story status/);
   });
 });

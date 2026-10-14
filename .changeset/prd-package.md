@@ -19,4 +19,4 @@ Planning tools for shaping a PRD after it is created:
 - `update_phase`, `delete_phase`, `reorder_phases`.
 - A PRD `glossary` and per-story `testSeams`.
 - `shape_prd` MCP prompt: a round-by-round interview that writes each decision into the PRD, then slices the work into thin stories and phases.
-
+- `review_story` MCP prompt: checks a story's changes against its acceptance criteria, non-goals, out-of-scope items and test seams, and reports approve or send back.
