@@ -1,6 +1,10 @@
 import { formatPrdMarkdown } from './markdown';
 import {
   appendChangeLog,
+  appendStoryLog,
+  assertCanEnterStatus,
+  buildStoryContext,
+  pickNextStory,
   assignStoryToPhase,
   createPhase,
   deleteStory,
@@ -37,6 +41,11 @@ import type {
   CreateCustomPhaseOutput,
   AssignStoryToPhaseInput,
   AssignStoryToPhaseOutput,
+  AddStoryLogInput,
+  AddStoryLogOutput,
+  GetNextStoryOutput,
+  GetStoryInput,
+  GetStoryOutput,
 } from './schema';
 import type { StoryComplexity, StructuredPRD, UserStory } from './types';
 
@@ -315,8 +324,13 @@ export class PrdService {
   ): Promise<UpdateStoryStatusOutput> {
     const filename = this.safeName(input.filename);
 
-    // Validate the target exists before paying for verification.
-    findStory(await this.load(filename), input.storyId);
+    // Validate the target and the workflow before paying for verification.
+    const current = await this.load(filename);
+    assertCanEnterStatus(
+      current,
+      findStory(current, input.storyId),
+      input.status,
+    );
 
     let verification: UpdateStoryStatusOutput['verification'] = null;
 
@@ -338,6 +352,7 @@ export class PrdService {
     // meantime are not overwritten by a stale snapshot.
     const prd = await this.load(filename);
     const story = findStory(prd, input.storyId);
+    assertCanEnterStatus(prd, story, input.status);
 
     const previousStatus = story.status;
 
@@ -417,7 +432,7 @@ export class PrdService {
         `Implement ${story.id}: "${story.userStory}". ` +
           `Business value: ${story.businessValue}. ` +
           `Acceptance criteria: ${story.acceptanceCriteria.join(' | ')}. ` +
-          'Research technical approach and implement. Mark the story completed with update_story_status only once run_checks passes.',
+          'Research technical approach and implement. Mark the story completed with update_story_status; it is accepted only once the project checks pass.',
       );
     }
 
@@ -519,6 +534,34 @@ export class PrdService {
     };
   }
 
+  // Agent workflow ----------------------------------------------------------
+
+  async getNextStory(filename: string): Promise<GetNextStoryOutput> {
+    return pickNextStory(await this.load(this.safeName(filename)));
+  }
+
+  async getStory(input: GetStoryInput): Promise<GetStoryOutput> {
+    const prd = await this.load(this.safeName(input.filename));
+
+    return buildStoryContext(prd, input.storyId);
+  }
+
+  async addStoryLog(input: AddStoryLogInput): Promise<AddStoryLogOutput> {
+    const filename = this.safeName(input.filename);
+    const prd = await this.load(filename);
+
+    const result = appendStoryLog(prd, input.storyId, {
+      at: this.deps.now().toISOString(),
+      whatsNew: input.whatsNew,
+      technicalNotes: input.technicalNotes,
+    });
+
+    appendChangeLog(prd, `Logged work on ${result.story_id}`, this.today());
+    await this.save(filename, prd);
+
+    return result;
+  }
+
   // Persistence -------------------------------------------------------------
 
   /**
@@ -548,6 +591,22 @@ export class PrdService {
 
   private async save(filename: string, prd: StructuredPRD) {
     const today = this.today();
+    const path = join(this.prdsDir, filename);
+    const loadedRevision = prd.metadata.revision ?? 0;
+
+    if (await this.deps.fileExists(path)) {
+      const onDisk = await this.load(filename);
+
+      if ((onDisk.metadata.revision ?? 0) !== loadedRevision) {
+        throw new Error(
+          `PRD "${filename}" was changed by someone else since it was read ` +
+            `(revision ${loadedRevision}, now ${onDisk.metadata.revision ?? 0}). ` +
+            'Read it again and retry.',
+        );
+      }
+    }
+
+    prd.metadata.revision = loadedRevision + 1;
 
     prd.metadata.lastUpdated = today;
     prd.introduction.lastUpdated = today;
@@ -556,10 +615,7 @@ export class PrdService {
     // previous `if (changeLog.length === 0)` guard meant the log never grew
     // past the line `create` seeded, so a PRD's history was always one entry.
 
-    await this.deps.writeFile(
-      join(this.prdsDir, filename),
-      JSON.stringify(prd, null, 2),
-    );
+    await this.deps.writeFile(path, JSON.stringify(prd, null, 2));
   }
 
   private async listFilenames() {
@@ -603,7 +659,7 @@ function buildVerificationFailure(
     `Cannot mark ${storyId} as completed: verification failed ` +
     `(${result.errors} errors, ${result.warnings} warnings across ${result.checks.join(', ') || 'no checks'}). ` +
     (reasons ? `${reasons} ` : '') +
-    'Fix the issues, run run_checks, then retry.'
+    'Fix the issues, run the project checks, then retry.'
   );
 }
 
@@ -690,6 +746,7 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
       lastValidatedAt: prd.metadata?.lastValidatedAt ?? today,
       approver: prd.metadata?.approver ?? '',
       lastStoryNumber: prd.metadata?.lastStoryNumber,
+      revision: prd.metadata?.revision,
     },
     progress: {
       overall: prd.progress?.overall ?? 0,

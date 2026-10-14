@@ -26,6 +26,18 @@ export interface StoryVerification {
   passed: true;
 }
 
+/**
+ * A hand-off note an agent writes when it finishes working on a story, so the
+ * next story (often a fresh session with an empty context) knows what changed.
+ */
+export interface StoryLogEntry {
+  at: string;
+  /** Plain-language list of what a human should now be able to try. */
+  whatsNew: string[];
+  /** Decisions, gotchas and file locations for the next agent. */
+  technicalNotes: string[];
+}
+
 export interface UserStory {
   id: string;
   title: string;
@@ -39,6 +51,7 @@ export interface UserStory {
   notes?: string;
   completedAt?: string;
   verification?: StoryVerification;
+  log?: StoryLogEntry[];
 }
 
 export interface RiskItem {
@@ -178,6 +191,12 @@ export interface StructuredPRD {
      * fall back to the highest id present.
      */
     lastStoryNumber?: number;
+    /**
+     * Incremented on every save. A write whose PRD was read at an older
+     * revision is rejected, so two writers (an agent and the Board) cannot
+     * silently overwrite each other. Absent on files written before it existed.
+     */
+    revision?: number;
   };
 
   progress: {

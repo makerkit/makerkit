@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod/v3';
 
 import type { PrdService } from '../prd.service';
 import {
@@ -30,6 +31,12 @@ import {
   CreateCustomPhaseOutputSchema,
   AssignStoryToPhaseInputSchema,
   AssignStoryToPhaseOutputSchema,
+  GetNextStoryInputSchema,
+  GetNextStoryOutputSchema,
+  GetStoryInputSchema,
+  GetStoryOutputSchema,
+  AddStoryLogInputSchema,
+  AddStoryLogOutputSchema,
 } from '../schema';
 import {
   DESTRUCTIVE_TOOL,
@@ -343,4 +350,111 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
       }
     },
   );
+
+  server.registerTool(
+    'get_next_story',
+    {
+      title: 'Next story to work on',
+      description:
+        'The next not-started story whose dependencies are all completed, ordered by phase, priority and position. Also lists stories in progress and stories waiting on dependencies.',
+      inputSchema: GetNextStoryInputSchema,
+      outputSchema: GetNextStoryOutputSchema,
+      annotations: READ_ONLY_TOOL,
+    },
+    async (input) => {
+      try {
+        const { filename } = GetNextStoryInputSchema.parse(input);
+
+        return buildStructuredResponse(await service.getNextStory(filename));
+      } catch (error) {
+        return buildErrorResponse('get_next_story', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'get_story',
+    {
+      title: 'Story with context',
+      description:
+        'One story with what is needed to implement it: PRD summary and scope limits, its phase, its dependencies and their hand-off logs, and the log of the most recently completed story. Prefer this over get_prd when working on a single story.',
+      inputSchema: GetStoryInputSchema,
+      outputSchema: GetStoryOutputSchema,
+      annotations: READ_ONLY_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.getStory(GetStoryInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('get_story', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'add_story_log',
+    {
+      title: 'Log work on a story',
+      description:
+        'Append a hand-off entry to a story: what a person can now try (whatsNew) and notes for the next agent (technicalNotes). Write one when you finish a work session on a story.',
+      inputSchema: AddStoryLogInputSchema,
+      outputSchema: AddStoryLogOutputSchema,
+      annotations: MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.addStoryLog(AddStoryLogInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('add_story_log', error);
+      }
+    },
+  );
+
+  server.registerPrompt(
+    'implement_story',
+    {
+      title: 'Implement a PRD story',
+      description:
+        'Instructions for implementing one story end to end with the PRD tools.',
+      argsSchema: {
+        filename: z.string().describe('PRD file name inside .prds'),
+        storyId: z
+          .string()
+          .optional()
+          .describe('Story id such as US003. Omit to take the next ready one.'),
+      },
+    },
+    ({ filename, storyId }) => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: implementStoryPrompt(filename, storyId),
+          },
+        },
+      ],
+    }),
+  );
+}
+
+function implementStoryPrompt(filename: string, storyId?: string) {
+  const pick = storyId
+    ? `Work on story ${storyId}.`
+    : 'Call get_next_story to pick the story. If none is ready, report why and stop.';
+
+  return [
+    `You are implementing a story from the PRD "${filename}". ${pick}`,
+    '',
+    '1. Call get_story. Read the acceptance criteria, the non-goals and out-of-scope items, and the logs of its dependencies and of the previous story. Build only what this story asks for.',
+    '2. Call update_story_status with status "in_progress".',
+    '3. Plan the change, then implement it with tests that cover the acceptance criteria.',
+    '4. Run the project checks and fix what fails.',
+    '5. Call add_story_log: whatsNew lists what a person can now try, in plain language; technicalNotes lists decisions, gotchas and files the next agent should know about.',
+    '6. Call update_story_status with status "review". Do not mark the story completed; a person approves it.',
+  ].join('\n');
 }

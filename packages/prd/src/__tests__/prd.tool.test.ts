@@ -83,6 +83,7 @@ describe('registerPRDTools', () => {
     registerPRDTools(fake.server, createPrdService(createDeps()));
 
     expect(fake.tools.map((tool) => tool.name).sort()).toEqual([
+      'add_story_log',
       'add_user_story',
       'assign_story_to_phase',
       'create_custom_phase',
@@ -92,8 +93,10 @@ describe('registerPRDTools', () => {
       'export_prd_markdown',
       'get_implementation_prompts',
       'get_improvement_suggestions',
+      'get_next_story',
       'get_prd',
       'get_project_status',
+      'get_story',
       'list_prds',
       'update_story_status',
       'update_user_story',

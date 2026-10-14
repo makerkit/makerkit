@@ -19,8 +19,16 @@ export interface RegisteredTool {
   handler: (input: unknown) => Promise<Record<string, unknown>>;
 }
 
+export interface RegisteredPrompt {
+  name: string;
+  handler: (args: Record<string, unknown>) => {
+    messages: Array<{ role: string; content: { type: string; text: string } }>;
+  };
+}
+
 export function createFakeMcpServer() {
   const tools: RegisteredTool[] = [];
+  const prompts: RegisteredPrompt[] = [];
 
   const server = {
     registerTool(
@@ -31,11 +39,20 @@ export function createFakeMcpServer() {
       tools.push({ name, config, handler });
       return {};
     },
+    registerPrompt(
+      name: string,
+      _config: unknown,
+      handler: RegisteredPrompt['handler'],
+    ) {
+      prompts.push({ name, handler });
+      return {};
+    },
   };
 
   return {
     server: server as unknown as McpServer,
     tools,
+    prompts,
     tool(name: string) {
       const tool = tools.find((item) => item.name === name);
 

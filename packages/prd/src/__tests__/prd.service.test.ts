@@ -443,7 +443,9 @@ describe('PrdService reports', () => {
     const prompts =
       await service.getImplementationPrompts('notes-feature.json');
     expect(prompts.total).toBe(2);
-    expect(prompts.prompts[1]).toMatch(/run_checks passes/);
+    expect(prompts.prompts[1]).toMatch(
+      /accepted only once the project checks pass/,
+    );
 
     const suggestions =
       await service.getImprovementSuggestions('notes-feature.json');

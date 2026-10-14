@@ -1,6 +1,6 @@
 import { z } from 'zod/v3';
 
-import type { StructuredPRD } from './types';
+import type { StructuredPRD, UserStory } from './types';
 
 const FilenameSchema = z
   .string()
@@ -253,6 +253,80 @@ export const GetProjectStatusOutputSchema = z.object({
   ),
 });
 
+const StoryObjectSchema = z.custom<UserStory>(
+  (value) => typeof value === 'object' && value !== null,
+);
+
+export const StoryLogEntrySchema = z.object({
+  at: z.string(),
+  whatsNew: z.array(z.string()),
+  technicalNotes: z.array(z.string()),
+});
+
+export const GetNextStoryInputSchema = z.object({ filename: FilenameSchema });
+
+export const GetNextStoryOutputSchema = z.object({
+  /** Null when nothing is ready: all done, in progress, or waiting. */
+  story: StoryObjectSchema.nullable(),
+  ready_count: z.number().int().min(0),
+  in_progress: z.array(z.string()),
+  waiting: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      waiting_on: z.array(z.string()),
+    }),
+  ),
+});
+
+export const GetStoryInputSchema = z.object({
+  filename: FilenameSchema,
+  storyId: z.string().min(1),
+});
+
+const StoryLogsSchema = z.array(StoryLogEntrySchema);
+
+export const GetStoryOutputSchema = z.object({
+  prd: z.object({
+    title: z.string(),
+    overview: z.string(),
+    non_goals: z.array(z.string()),
+    out_of_scope: z.array(z.string()),
+    global_acceptance_criteria: z.array(z.string()),
+  }),
+  story: StoryObjectSchema,
+  phase: z.object({ id: z.string(), name: z.string() }).nullable(),
+  dependencies: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string().nullable(),
+      status: z.string().nullable(),
+      log: StoryLogsSchema,
+    }),
+  ),
+  previous_story: z
+    .object({ id: z.string(), title: z.string(), log: StoryLogsSchema })
+    .nullable(),
+});
+
+export const AddStoryLogInputSchema = z.object({
+  filename: FilenameSchema,
+  storyId: z.string().min(1),
+  whatsNew: z
+    .array(z.string().min(1))
+    .min(1)
+    .describe('What a person can now try, in plain language'),
+  technicalNotes: z
+    .array(z.string().min(1))
+    .default([])
+    .describe('Decisions, gotchas and file locations for the next agent'),
+});
+
+export const AddStoryLogOutputSchema = z.object({
+  story_id: z.string(),
+  entries: z.number().int().min(1),
+});
+
 export type PrdSummary = z.infer<typeof PrdSummarySchema>;
 export type ListPrdsOutput = z.infer<typeof ListPrdsOutputSchema>;
 export type GetPrdInput = z.infer<typeof GetPrdInputSchema>;
@@ -300,3 +374,8 @@ export type AssignStoryToPhaseInput = z.infer<
 export type AssignStoryToPhaseOutput = z.infer<
   typeof AssignStoryToPhaseOutputSchema
 >;
+export type GetNextStoryOutput = z.infer<typeof GetNextStoryOutputSchema>;
+export type GetStoryInput = z.infer<typeof GetStoryInputSchema>;
+export type GetStoryOutput = z.infer<typeof GetStoryOutputSchema>;
+export type AddStoryLogInput = z.infer<typeof AddStoryLogInputSchema>;
+export type AddStoryLogOutput = z.infer<typeof AddStoryLogOutputSchema>;

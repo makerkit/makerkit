@@ -7,7 +7,12 @@ import type {
   UpdateUserStoryInput,
   UpdateUserStoryOutput,
 } from './schema';
-import type { StructuredPRD, UserStory } from './types';
+import type {
+  StoryLogEntry,
+  StoryStatus,
+  StructuredPRD,
+  UserStory,
+} from './types';
 
 /**
  * Pure PRD transforms.
@@ -422,4 +427,151 @@ export function assignStoryToPhase(
     phase_name: target?.name ?? null,
     moved_from: previous && previous.id !== target?.id ? previous.id : null,
   };
+}
+
+// Workflow ------------------------------------------------------------------
+
+/** Statuses that mean work on the story has started or finished. */
+const WORK_STATUSES: StoryStatus[] = ['in_progress', 'review', 'completed'];
+
+const PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2, P3: 3 } as const;
+
+/** Dependencies of `story` that are not completed yet. */
+export function incompleteDependencies(prd: StructuredPRD, story: UserStory) {
+  return story.dependencies.filter((id) => {
+    const dependency = prd.userStories.find((candidate) => candidate.id === id);
+
+    return dependency?.status !== 'completed';
+  });
+}
+
+/**
+ * A story cannot be worked on, reviewed or completed before the stories it
+ * depends on are completed. `not_started`, `research` and `blocked` stay
+ * available so a story can still be planned or parked.
+ */
+export function assertCanEnterStatus(
+  prd: StructuredPRD,
+  story: UserStory,
+  status: StoryStatus,
+) {
+  if (!WORK_STATUSES.includes(status)) {
+    return;
+  }
+
+  const waitingOn = incompleteDependencies(prd, story);
+
+  if (waitingOn.length > 0) {
+    throw new Error(
+      `Cannot move ${story.id} to ${status}: it depends on ${waitingOn.join(', ')}, which ${waitingOn.length === 1 ? 'is' : 'are'} not completed yet.`,
+    );
+  }
+}
+
+/** Position of the story's phase; stories without a phase come last. */
+function phaseRank(prd: StructuredPRD, storyId: string) {
+  const phase = prd.customPhases.find((candidate) =>
+    candidate.userStoryIds.includes(storyId),
+  );
+
+  return phase ? phase.order : Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * The next story to start: not started, every dependency completed, ordered
+ * by phase, then priority, then position in the PRD.
+ */
+export function pickNextStory(prd: StructuredPRD) {
+  const notStarted = prd.userStories.filter(
+    (story) => story.status === 'not_started',
+  );
+
+  const ready = notStarted
+    .filter((story) => incompleteDependencies(prd, story).length === 0)
+    .sort(
+      (a, b) =>
+        phaseRank(prd, a.id) - phaseRank(prd, b.id) ||
+        PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] ||
+        prd.userStories.indexOf(a) - prd.userStories.indexOf(b),
+    );
+
+  const waiting = notStarted
+    .map((story) => ({
+      id: story.id,
+      title: story.title,
+      waiting_on: incompleteDependencies(prd, story),
+    }))
+    .filter((entry) => entry.waiting_on.length > 0);
+
+  return {
+    story: ready[0] ?? null,
+    ready_count: ready.length,
+    in_progress: prd.userStories
+      .filter((story) => story.status === 'in_progress')
+      .map((story) => story.id),
+    waiting,
+  };
+}
+
+/**
+ * Everything an agent needs to work on one story without loading the whole
+ * PRD: the story, the scope boundaries, its dependencies with their hand-off
+ * logs, and the log of the most recently completed story.
+ */
+export function buildStoryContext(prd: StructuredPRD, storyId: string) {
+  const story = findStory(prd, storyId);
+  const phase =
+    prd.customPhases.find((candidate) =>
+      candidate.userStoryIds.includes(story.id),
+    ) ?? null;
+
+  const lastCompleted =
+    prd.userStories
+      .filter((candidate) => candidate.status === 'completed')
+      .filter((candidate) => candidate.id !== story.id)
+      .sort((a, b) => (a.completedAt ?? '').localeCompare(b.completedAt ?? ''))
+      .at(-1) ?? null;
+
+  return {
+    prd: {
+      title: prd.introduction.title,
+      overview: prd.introduction.overview,
+      non_goals: prd.nonGoals,
+      out_of_scope: prd.outOfScope,
+      global_acceptance_criteria: prd.acceptanceCriteria.global,
+    },
+    story,
+    phase: phase ? { id: phase.id, name: phase.name } : null,
+    dependencies: story.dependencies.map((id) => {
+      const dependency = prd.userStories.find(
+        (candidate) => candidate.id === id,
+      );
+
+      return {
+        id,
+        title: dependency?.title ?? null,
+        status: dependency?.status ?? null,
+        log: dependency?.log ?? [],
+      };
+    }),
+    previous_story: lastCompleted
+      ? {
+          id: lastCompleted.id,
+          title: lastCompleted.title,
+          log: lastCompleted.log ?? [],
+        }
+      : null,
+  };
+}
+
+export function appendStoryLog(
+  prd: StructuredPRD,
+  storyId: string,
+  entry: StoryLogEntry,
+) {
+  const story = findStory(prd, storyId);
+
+  story.log = [...(story.log ?? []), entry];
+
+  return { story_id: story.id, entries: story.log.length };
 }
