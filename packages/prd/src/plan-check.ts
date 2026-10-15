@@ -110,6 +110,16 @@ export function checkPlan(prd: StructuredPRD) {
     });
   }
 
+  if (stories.length > 0 && prd.technicalContracts.dataModels.length === 0) {
+    items.push({
+      id: 'data-models',
+      section: 'technicalContracts',
+      message:
+        'Describe the main entities and how they relate in technicalContracts.dataModels',
+      severity: 'recommended',
+    });
+  }
+
   // Stories with no criteria are already reported as required.
   const vague = stories.filter(
     (story) =>

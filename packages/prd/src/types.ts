@@ -36,6 +36,12 @@ export interface StoryLogEntry {
   whatsNew: string[];
   /** Decisions, gotchas and file locations for the next agent. */
   technicalNotes: string[];
+  /**
+   * Where the work departed from the PRD and why, so the person approving
+   * the story and the review_story prompt can judge it. Absent when there
+   * were none, and on logs written before it existed.
+   */
+  deviations?: string[];
 }
 
 export interface UserStory {
@@ -57,6 +63,23 @@ export interface UserStory {
    * action, a service function) whose behaviour the tests exercise.
    */
   testSeams?: string[];
+  /** Ids of the PRD's attachments this story uses, e.g. a mockup. */
+  attachmentIds?: string[];
+}
+
+/**
+ * A file or link the plan refers to: a mockup, a screenshot, reference docs.
+ * Files live in the PRD's own folder, `.prds/<prd name>/`, next to its JSON
+ * file. Exactly one of `path` and `url` is set.
+ */
+export interface Attachment {
+  id: string;
+  title: string;
+  /** Relative to the PRD's folder, e.g. `mockups/approve-view.png`. */
+  path?: string;
+  url?: string;
+  /** What to take from it, e.g. "Layout only; colours are placeholders". */
+  note?: string;
 }
 
 /** A term the team has agreed on, so people and agents use the same words. */
@@ -116,6 +139,13 @@ export interface StoryTraceabilityMap {
   successMetricIds: string[];
 }
 
+/**
+ * Text fields may use Markdown. Longer text (the overview, problem, solution
+ * description, story notes, decision rationale) may use any block Markdown;
+ * items of a list (acceptance criteria, non-goals, story log entries...) are
+ * rendered as bullets, so they keep to inline Markdown: bold, italics, code
+ * and links. Raw HTML is not rendered.
+ */
 export interface StructuredPRD {
   introduction: {
     title: string;
@@ -188,6 +218,7 @@ export interface StructuredPRD {
 
   decisionLog: DecisionLogEntry[];
   glossary: GlossaryTerm[];
+  attachments: Attachment[];
   agentTaskPackets: AgentTaskPacket[];
   changeLog: string[];
 
@@ -205,6 +236,8 @@ export interface StructuredPRD {
      * fall back to the highest id present.
      */
     lastStoryNumber?: number;
+    /** High-water mark for attachment ids, for the same reason. */
+    lastAttachmentNumber?: number;
     /**
      * Incremented on every save. A write whose PRD was read at an older
      * revision is rejected, so two writers (an agent and the Board) cannot

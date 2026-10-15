@@ -1,3 +1,4 @@
+import { resolveAttachments } from './attachment-paths';
 import type {
   AssignStoryToPhaseInput,
   AssignStoryToPhaseOutput,
@@ -206,11 +207,16 @@ export function updateStory(
     updated.push('notes');
   }
 
+  if (input.attachmentIds !== undefined) {
+    story.attachmentIds = validateAttachmentIds(prd, input.attachmentIds);
+    updated.push('attachmentIds');
+  }
+
   if (updated.length === 0) {
     throw new Error(
       `No fields supplied to update on ${story.id}. Provide at least one of: ` +
         'title, userType, action, benefit, businessValue, acceptanceCriteria, ' +
-        'priority, estimatedComplexity, dependencies, notes.',
+        'priority, estimatedComplexity, dependencies, notes, testSeams, attachmentIds.',
     );
   }
 
@@ -222,6 +228,27 @@ export function updateStory(
     updated_fields: [...new Set(updated)],
     story: story as unknown as Record<string, unknown>,
   };
+}
+
+export function findAttachment(prd: StructuredPRD, attachmentId: string) {
+  const attachment = prd.attachments.find(
+    (candidate) => candidate.id === attachmentId,
+  );
+
+  if (!attachment) {
+    throw new Error(`Attachment "${attachmentId}" not found.`);
+  }
+
+  return attachment;
+}
+
+/** Attachment ids must name attachments in the PRD. */
+export function validateAttachmentIds(prd: StructuredPRD, ids: string[]) {
+  for (const id of ids) {
+    findAttachment(prd, id);
+  }
+
+  return [...new Set(ids)];
 }
 
 /**
@@ -523,8 +550,14 @@ export function pickNextStory(prd: StructuredPRD) {
  * PRD: the story, the scope boundaries, its dependencies with their hand-off
  * logs, and the log of the most recently completed story.
  */
-export function buildStoryContext(prd: StructuredPRD, storyId: string) {
+/** `filename` is the PRD's file name, used to give attachment paths. */
+export function buildStoryContext(
+  prd: StructuredPRD,
+  storyId: string,
+  filename: string,
+) {
   const story = findStory(prd, storyId);
+  const linked = new Set(story.attachmentIds ?? []);
   const phase =
     prd.customPhases.find((candidate) =>
       candidate.userStoryIds.includes(story.id),
@@ -544,8 +577,13 @@ export function buildStoryContext(prd: StructuredPRD, storyId: string) {
       non_goals: prd.nonGoals,
       out_of_scope: prd.outOfScope,
       global_acceptance_criteria: prd.acceptanceCriteria.global,
+      attachments: resolveAttachments(filename, prd.attachments),
     },
     story,
+    attachments: resolveAttachments(
+      filename,
+      prd.attachments.filter((attachment) => linked.has(attachment.id)),
+    ),
     phase: phase ? { id: phase.id, name: phase.name } : null,
     dependencies: story.dependencies.map((id) => {
       const dependency = prd.userStories.find(

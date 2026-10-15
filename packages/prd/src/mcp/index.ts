@@ -3,6 +3,13 @@ import { z } from 'zod/v3';
 
 import type { PrdService } from '../prd.service';
 import {
+  implementStoryPrompt,
+  reviewStoryPrompt,
+  shapePrdPrompt,
+} from '../prompts';
+import {
+  AddAttachmentInputSchema,
+  AddAttachmentOutputSchema,
   AddUserStoryInputSchema,
   AddUserStoryOutputSchema,
   CreatePrdInputSchema,
@@ -18,6 +25,8 @@ import {
   GetPrdInputSchema,
   GetPrdOutputSchema,
   GetProjectStatusInputSchema,
+  RemoveAttachmentInputSchema,
+  RemoveAttachmentOutputSchema,
   GetProjectStatusOutputSchema,
   ListPrdsInputSchema,
   ListPrdsOutputSchema,
@@ -54,7 +63,7 @@ import {
   ListTemplatesInputSchema,
   ListTemplatesOutputSchema,
 } from '../schema';
-import { TEMPLATE_IDS, getTemplate } from '../templates';
+import { TEMPLATE_IDS } from '../templates';
 import {
   DESTRUCTIVE_TOOL,
   IDEMPOTENT_MUTATING_TOOL,
@@ -133,7 +142,8 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     'delete_prd',
     {
       title: 'Delete a PRD',
-      description: 'Permanently delete a PRD file.',
+      description:
+        'Permanently delete a PRD file. Its folder of attachments, if any, is kept.',
       inputSchema: DeletePrdInputSchema,
       outputSchema: DeletePrdOutputSchema,
       annotations: DESTRUCTIVE_TOOL,
@@ -304,7 +314,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Implementation prompts',
       description:
-        'Generate implementation prompts for the PRD and its next unstarted stories.',
+        'The implement_story instructions for the next unstarted stories, as text to paste into an agent that does not support MCP prompts.',
       inputSchema: GetImplementationPromptsInputSchema,
       outputSchema: GetImplementationPromptsOutputSchema,
       annotations: READ_ONLY_TOOL,
@@ -455,7 +465,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Log work on a story',
       description:
-        'Append a hand-off entry to a story: what a person can now try (whatsNew) and notes for the next agent (technicalNotes). Write one when you finish a work session on a story.',
+        'Append a hand-off entry to a story: what a person can now try (whatsNew), notes for the next agent (technicalNotes) and where the work departed from the PRD (deviations). Write one when you finish a work session on a story.',
       inputSchema: AddStoryLogInputSchema,
       outputSchema: AddStoryLogOutputSchema,
       annotations: MUTATING_TOOL,
@@ -467,6 +477,50 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
         );
       } catch (error) {
         return buildErrorResponse('add_story_log', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'add_attachment',
+    {
+      title: 'Add an attachment',
+      description:
+        "Record a file or link the plan refers to (a mockup, a screenshot, reference docs) and link it to the stories that use it. Save files in the PRD folder, .prds/<prd file name without .json>/, first. get_story returns a story's attachments with their paths.",
+      inputSchema: AddAttachmentInputSchema,
+      outputSchema: AddAttachmentOutputSchema,
+      annotations: MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.addAttachment(AddAttachmentInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('add_attachment', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'remove_attachment',
+    {
+      title: 'Remove an attachment',
+      description:
+        'Remove an attachment from the PRD and from every story that uses it. The file itself is kept.',
+      inputSchema: RemoveAttachmentInputSchema,
+      outputSchema: RemoveAttachmentOutputSchema,
+      annotations: DESTRUCTIVE_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.removeAttachment(
+            RemoveAttachmentInputSchema.parse(input),
+          ),
+        );
+      } catch (error) {
+        return buildErrorResponse('remove_attachment', error);
       }
     },
   );
@@ -711,89 +765,4 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
       ],
     }),
   );
-}
-
-function shapePrdPrompt(
-  idea?: string,
-  filename?: string,
-  templateId?: (typeof TEMPLATE_IDS)[number],
-) {
-  const template = templateId ? getTemplate(templateId) : null;
-
-  const start = filename
-    ? `Keep shaping the PRD "${filename}". Read it with get_prd first and continue from its open questions.`
-    : idea
-      ? `The idea: ${idea}`
-      : 'Start by asking what we are building, in a sentence or two.';
-
-  return [
-    `We are shaping a product requirements document before any code is written. ${start}`,
-    '',
-    'How to run the interview:',
-    '- Think of the plan as a tree of decisions. In each round, ask only the questions that can be answered now, i.e. whose prerequisites are already decided. Number them.',
-    '- Give a recommended answer for every question, worded so that replying "yes" accepts it. The user can accept, change or discuss each one.',
-    '- Look up facts yourself (the codebase, existing PRDs, docs) instead of asking. Only decisions go to the user.',
-    '- After each round, record what was decided before asking the next round.',
-    '- Stop when no undecided questions remain, and confirm with the user before slicing the work.',
-    '',
-    template
-      ? `This is a "${template.name}" (${template.description}) Create the PRD with template "${template.id}", and make sure the interview covers: ${template.interviewFocus.join(' ')}`
-      : 'If you are unsure what kind of work this is, call list_templates and suggest one.',
-    '',
-    'Order of the rounds, broad to detailed:',
-    '1. What we are building and for whom (create_prd once this is clear, if there is no PRD yet).',
-    '2. Main features, then what we are explicitly NOT building (update_prd_section with nonGoals and outOfScope). Be explicit: anything unlisted is likely to be invented later.',
-    '3. Whether this is an internal tool or a product for many customers or tenants. It changes what should be configurable versus hard-coded.',
-    '4. The main entities and the words for them (add_glossary_term, including words to avoid).',
-    '5. For each feature: what is in and out of scope, and what a person must be able to do (acceptance criteria).',
-    '6. Hard-to-reverse choices (add_decision). Unanswered questions go to update_prd_section openQuestions; answer them later with resolve_open_question.',
-    '',
-    'Then slice the work:',
-    '- Each story is a thin slice through every layer that a person can try once it is done, and that fits in one agent session. Put refactoring needed by later stories in its own earlier story.',
-    '- Create the phases first (create_custom_phase), in the order they should be built.',
-    '- Add each story with add_user_story in one call: testSeams (the public entry points the tests will exercise), dependencies (stories that must be completed first) and phaseId.',
-    '- Confirm the breakdown with the user, then fix anything with update_user_story or assign_story_to_phase.',
-  ].join('\n');
-}
-
-function reviewStoryPrompt(filename: string, storyId: string, base?: string) {
-  const diff = base
-    ? `git diff ${base}`
-    : 'git diff HEAD (plus untracked files from git status)';
-
-  return [
-    `Review the work done for story ${storyId} in the PRD "${filename}". You are checking it against its spec, not reviewing code style: a separate review covers code quality.`,
-    '',
-    `1. Call get_story for the acceptance criteria, non-goals, out-of-scope items, test seams and the story log. Read the changes with ${diff}.`,
-    '2. For each acceptance criterion, decide met, partly met or not met, and cite the file or test that shows it.',
-    '3. Scope: list changes the story did not ask for, especially anything in non-goals or out of scope.',
-    '4. Tests: check that tests exercise the listed test seams and cover the criteria through public behaviour.',
-    '5. Check that the story log matches what changed. Flag claims in whatsNew that the changes do not support.',
-    '',
-    'Report:',
-    '- Verdict: "approve" or "send back".',
-    '- Criteria: one line per criterion with its result and evidence.',
-    '- Scope: extra or missing work, or "none".',
-    '- Tests: gaps, or "none".',
-    '- If sending back: a short list of specific fixes, written for the agent that will make them.',
-    '',
-    'Do not change the story status and do not edit code. A person decides.',
-  ].join('\n');
-}
-
-function implementStoryPrompt(filename: string, storyId?: string) {
-  const pick = storyId
-    ? `Work on story ${storyId}.`
-    : 'Call get_next_story to pick the story. If none is ready, report why and stop.';
-
-  return [
-    `You are implementing a story from the PRD "${filename}". ${pick}`,
-    '',
-    '1. Call get_story. Read the acceptance criteria, the non-goals and out-of-scope items, and the logs of its dependencies and of the previous story. Build only what this story asks for.',
-    '2. Call update_story_status with status "in_progress".',
-    '3. Plan the change, then implement it with tests that cover the acceptance criteria.',
-    '4. Run the project checks and fix what fails.',
-    '5. Call add_story_log: whatsNew lists what a person can now try, in plain language; technicalNotes lists decisions, gotchas and files the next agent should know about.',
-    '6. Call update_story_status with status "review". Do not mark the story completed; a person approves it.',
-  ].join('\n');
 }

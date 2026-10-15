@@ -1,4 +1,10 @@
-import type { StoryStatus, StructuredPRD, UserStory } from './types';
+import { attachmentsFolder } from './attachment-paths';
+import type {
+  Attachment,
+  StoryStatus,
+  StructuredPRD,
+  UserStory,
+} from './types';
 
 const STATUS_LABELS: Record<StoryStatus, string> = {
   not_started: '[not started]',
@@ -9,7 +15,14 @@ const STATUS_LABELS: Record<StoryStatus, string> = {
   blocked: '[blocked]',
 };
 
-export function formatPrdMarkdown(prd: StructuredPRD): string {
+/**
+ * Pass the PRD file name to link attachment files relative to `.prds/`, where
+ * the markdown export is written.
+ */
+export function formatPrdMarkdown(
+  prd: StructuredPRD,
+  filename?: string,
+): string {
   const lines: string[] = [];
 
   lines.push(`# ${prd.introduction.title}`, '');
@@ -67,6 +80,14 @@ export function formatPrdMarkdown(prd: StructuredPRD): string {
     for (const dependency of prd.dependencies) {
       const mode = dependency.blocking ? 'blocking' : 'non-blocking';
       lines.push(`- ${dependency.name} (${mode}) - ${dependency.description}`);
+    }
+  }
+
+  if (prd.attachments.length > 0) {
+    lines.push('', '## Attachments');
+
+    for (const attachment of prd.attachments) {
+      lines.push(formatAttachment(attachment, filename));
     }
   }
 
@@ -136,6 +157,10 @@ function formatStory(story: UserStory): string[] {
     lines.push('', `**Dependencies:** ${story.dependencies.join(', ')}`);
   }
 
+  if (story.attachmentIds?.length) {
+    lines.push('', `**Attachments:** ${story.attachmentIds.join(', ')}`);
+  }
+
   if (story.verification) {
     lines.push(
       '',
@@ -146,6 +171,36 @@ function formatStory(story: UserStory): string[] {
   lines.push('');
 
   return lines;
+}
+
+function formatAttachment(attachment: Attachment, filename?: string) {
+  const title = oneLine(attachment.title).replace(/[[\]]/g, '\\$&');
+  const target = attachment.url
+    ? linkTarget(attachment.url)
+    : filename
+      ? linkTarget(
+          encodeURI(`${attachmentsFolder(filename)}/${attachment.path}`),
+        )
+      : undefined;
+  const label = target
+    ? `[${title}](${target})`
+    : `${title} (${attachment.path})`;
+  const note = attachment.note ? ` - ${oneLine(attachment.note)}` : '';
+
+  return `- ${attachment.id}: ${label}${note}`;
+}
+
+/** Keeps a list item on one line, so text cannot start a new block. */
+function oneLine(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+/** Parentheses and spaces would end a markdown link target early. */
+function linkTarget(value: string) {
+  return value
+    .replace(/\s/g, '%20')
+    .replace(/\(/g, '%28')
+    .replace(/\)/g, '%29');
 }
 
 function bullets(items: string[], emptyLabel?: string) {

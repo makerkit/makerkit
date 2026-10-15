@@ -396,6 +396,8 @@ describe('MCP registration', () => {
     ]) {
       expect(text).toContain(tool);
     }
+    expect(text).toContain('dataModels');
+    expect(text).toContain('integrationNeeds');
   });
 });
 

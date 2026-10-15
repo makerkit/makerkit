@@ -49,6 +49,7 @@ describe('checkPlan', () => {
       'recommended:global-acceptance-criteria',
       'recommended:target-metrics',
       'recommended:rollout',
+      'recommended:data-models',
     ]);
   });
 
@@ -86,6 +87,28 @@ describe('checkPlan', () => {
     expect(
       ids(checkPlan(prd({ userStories: [...five, story('US006')] }))),
     ).toContain('recommended:phases');
+  });
+
+  it('asks for data models once there are stories', () => {
+    const base = prd();
+
+    expect(ids(checkPlan(base))).not.toContain('recommended:data-models');
+    expect(ids(checkPlan(prd({ userStories: [story('US001')] })))).toContain(
+      'recommended:data-models',
+    );
+    expect(
+      ids(
+        checkPlan(
+          prd({
+            userStories: [story('US001')],
+            technicalContracts: {
+              ...base.technicalContracts,
+              dataModels: ['Bookmark: a saved link. Belongs to one account.'],
+            },
+          }),
+        ),
+      ),
+    ).not.toContain('recommended:data-models');
   });
 
   it('does not ask completed stories for test seams', () => {

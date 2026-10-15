@@ -5,6 +5,7 @@ import {
   type PrdVerificationResult,
   createPrdService,
 } from '../prd.service';
+import { implementStoryPrompt } from '../prompts';
 
 const normalize = (path: string) => path.replace(/\\/g, '/');
 
@@ -442,10 +443,11 @@ describe('PrdService reports', () => {
 
     const prompts =
       await service.getImplementationPrompts('notes-feature.json');
-    expect(prompts.total).toBe(2);
-    expect(prompts.prompts[1]).toMatch(
-      /accepted only once the project checks pass/,
+    expect(prompts.total).toBe(1);
+    expect(prompts.prompts[0]).toBe(
+      implementStoryPrompt('notes-feature.json', 'US001'),
     );
+    expect(prompts.prompts[0]).not.toMatch(/Mark the story completed/);
 
     const suggestions =
       await service.getImprovementSuggestions('notes-feature.json');
@@ -456,5 +458,20 @@ describe('PrdService reports', () => {
     const status = await service.getProjectStatus('notes-feature.json');
     expect(status.next_steps).toEqual(['Start: Do X']);
     expect(status.blockers).toEqual([]);
+
+    // A story waiting on an unfinished dependency gets no prompt yet.
+    await service.addUserStory({
+      filename: 'notes-feature.json',
+      userType: 'member',
+      action: 'do z',
+      benefit: 'y',
+      acceptanceCriteria: ['one'],
+      priority: 'P2',
+      dependencies: ['US001'],
+    });
+
+    expect(
+      (await service.getImplementationPrompts('notes-feature.json')).total,
+    ).toBe(1);
   });
 });

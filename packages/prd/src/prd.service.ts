@@ -1,3 +1,5 @@
+import { attachmentsFolder, normalizeAttachments } from './attachment-paths';
+import { addAttachment, removeAttachment } from './attachments';
 import { formatPrdMarkdown } from './markdown';
 import { checkPlan } from './plan-check';
 import {
@@ -19,13 +21,16 @@ import {
   createPhase,
   deleteStory,
   findStory,
+  incompleteDependencies,
   recomputeProgress,
   nextStoryId,
   renderUserStory,
   updateStory,
+  validateAttachmentIds,
   validateDependencies,
 } from './prd-operations';
-import { assertSafeFileName } from './safe-file-name';
+import { implementStoryPrompt } from './prompts';
+import { assertSafeFileName, assertSafeRelativePath } from './safe-file-name';
 import type {
   AddUserStoryInput,
   AddUserStoryOutput,
@@ -57,6 +62,10 @@ import type {
   GetNextStoryOutput,
   GetStoryInput,
   GetStoryOutput,
+  AddAttachmentInput,
+  AddAttachmentOutput,
+  RemoveAttachmentInput,
+  RemoveAttachmentOutput,
   CheckPlanOutput,
   ListTemplatesOutput,
   UpdatePrdSectionInput,
@@ -237,6 +246,7 @@ export class PrdService {
       },
       decisionLog: [],
       glossary: [],
+      attachments: [],
       agentTaskPackets: [],
       changeLog: [
         input.template
@@ -304,6 +314,13 @@ export class PrdService {
         prd,
         storyId,
         input.dependencies,
+      );
+    }
+
+    if (input.attachmentIds?.length) {
+      findStory(prd, storyId).attachmentIds = validateAttachmentIds(
+        prd,
+        input.attachmentIds,
       );
     }
 
@@ -459,7 +476,7 @@ export class PrdService {
     const markdownFile = filename.replace(/\.json$/, '.md');
     const path = join(this.prdsDir, markdownFile);
 
-    await this.deps.writeFile(path, formatPrdMarkdown(prd));
+    await this.deps.writeFile(path, formatPrdMarkdown(prd, filename));
 
     return { markdown_file: markdownFile, path };
   }
@@ -467,29 +484,19 @@ export class PrdService {
   async getImplementationPrompts(
     filename: string,
   ): Promise<GetImplementationPromptsOutput> {
-    const prd = await this.load(this.safeName(filename));
+    const name = this.safeName(filename);
+    const prd = await this.load(name);
     const prompts: string[] = [];
 
-    if (prd.userStories.length === 0) {
-      return { prompts, total: 0 };
-    }
-
-    prompts.push(
-      `Implement "${prd.introduction.title}" based on the PRD. ` +
-        `Goal: ${prd.solutionOverview.description}. ` +
-        `Key features: ${prd.solutionOverview.keyFeatures.join(', ')}. ` +
-        'You must research and decide all technical implementation details.',
-    );
-
+    // Only stories that can start now: the prompt sets them in progress.
     for (const story of prd.userStories
-      .filter((s) => s.status === 'not_started')
+      .filter(
+        (s) =>
+          s.status === 'not_started' &&
+          incompleteDependencies(prd, s).length === 0,
+      )
       .slice(0, 3)) {
-      prompts.push(
-        `Implement ${story.id}: "${story.userStory}". ` +
-          `Business value: ${story.businessValue}. ` +
-          `Acceptance criteria: ${story.acceptanceCriteria.join(' | ')}. ` +
-          'Research technical approach and implement. Mark the story completed with update_story_status; it is accepted only once the project checks pass.',
-      );
+      prompts.push(implementStoryPrompt(name, story.id));
     }
 
     return { prompts, total: prompts.length };
@@ -609,9 +616,10 @@ export class PrdService {
   }
 
   async getStory(input: GetStoryInput): Promise<GetStoryOutput> {
-    const prd = await this.load(this.safeName(input.filename));
+    const filename = this.safeName(input.filename);
+    const prd = await this.load(filename);
 
-    return buildStoryContext(prd, input.storyId);
+    return buildStoryContext(prd, input.storyId, filename);
   }
 
   async addStoryLog(input: AddStoryLogInput): Promise<AddStoryLogOutput> {
@@ -622,12 +630,47 @@ export class PrdService {
       at: this.deps.now().toISOString(),
       whatsNew: input.whatsNew,
       technicalNotes: input.technicalNotes,
+      ...(input.deviations?.length && { deviations: input.deviations }),
     });
 
     appendChangeLog(prd, `Logged work on ${result.story_id}`, this.today());
     await this.save(filename, prd);
 
     return result;
+  }
+
+  // Attachments -------------------------------------------------------------
+
+  /** Files must already be in the PRD's folder, `.prds/<prd name>/`. */
+  async addAttachment(input: AddAttachmentInput): Promise<AddAttachmentOutput> {
+    const filename = this.safeName(input.filename);
+    const prd = await this.load(filename);
+
+    if (input.path) {
+      const folder = attachmentsFolder(filename);
+      const path = assertSafeRelativePath(input.path, 'attachment path');
+
+      if (!(await this.deps.fileExists(join(this.prdsDir, folder, path)))) {
+        throw new Error(
+          `File ".prds/${folder}/${path}" not found. Save it in .prds/${folder}/ first.`,
+        );
+      }
+    }
+
+    const result = addAttachment(prd, { ...input, filename }, this.today());
+
+    await this.save(filename, prd);
+
+    return result;
+  }
+
+  /** Removes the attachment from the PRD and its stories; the file stays. */
+  async removeAttachment(
+    input: RemoveAttachmentInput,
+  ): Promise<RemoveAttachmentOutput> {
+    return this.mutate(input.filename, (prd) =>
+      removeAttachment(prd, input.attachmentId, this.today()),
+    );
   }
 
   // Persistence -------------------------------------------------------------
@@ -755,9 +798,13 @@ function isErrnoCode(error: unknown, code: string) {
 }
 
 export function normalizePrd(input: unknown, today: string): StructuredPRD {
-  const prd = (input ?? {}) as Partial<StructuredPRD>;
+  const prd = (isPlainObject(input) ? input : {}) as Partial<StructuredPRD>;
 
   return {
+    // Keep top-level fields this version does not know, so a file written by
+    // a newer version keeps them when this one saves it. Known sections below
+    // are rebuilt, so unknown keys inside them are not kept.
+    ...prd,
     introduction: {
       title: prd.introduction?.title ?? 'Untitled PRD',
       overview: prd.introduction?.overview ?? '',
@@ -820,6 +867,7 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
     },
     decisionLog: prd.decisionLog ?? [],
     glossary: prd.glossary ?? [],
+    attachments: normalizeAttachments(prd.attachments),
     agentTaskPackets: prd.agentTaskPackets ?? [],
     changeLog: prd.changeLog ?? [],
     metadata: {
@@ -829,6 +877,7 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
       lastValidatedAt: prd.metadata?.lastValidatedAt ?? today,
       approver: prd.metadata?.approver ?? '',
       lastStoryNumber: prd.metadata?.lastStoryNumber,
+      lastAttachmentNumber: prd.metadata?.lastAttachmentNumber,
       revision: prd.metadata?.revision,
     },
     progress: {
@@ -838,6 +887,10 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
       blocked: prd.progress?.blocked ?? 0,
     },
   };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function slugify(value: string) {

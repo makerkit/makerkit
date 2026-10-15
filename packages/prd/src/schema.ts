@@ -115,6 +115,10 @@ export const AddUserStoryInputSchema = z.object({
     .min(1)
     .optional()
     .describe('Phase to put the story in, e.g. "PHASE002"'),
+  attachmentIds: z
+    .array(z.string().min(1))
+    .optional()
+    .describe('Ids of PRD attachments this story uses, e.g. ["ATT001"]'),
 });
 
 export const AddUserStoryOutputSchema = z.object({
@@ -166,6 +170,10 @@ export const UpdateUserStoryInputSchema = z.object({
     .describe(
       'Public entry points the tests exercise, e.g. a route or server action',
     ),
+  attachmentIds: z
+    .array(z.string().min(1))
+    .optional()
+    .describe('Ids of PRD attachments this story uses, e.g. ["ATT001"]'),
 });
 
 export const UpdateUserStoryOutputSchema = z.object({
@@ -289,6 +297,7 @@ export const StoryLogEntrySchema = z.object({
   at: z.string(),
   whatsNew: z.array(z.string()),
   technicalNotes: z.array(z.string()),
+  deviations: z.array(z.string()).optional(),
 });
 
 export const GetNextStoryInputSchema = z.object({ filename: FilenameSchema });
@@ -314,6 +323,15 @@ export const GetStoryInputSchema = z.object({
 
 const StoryLogsSchema = z.array(StoryLogEntrySchema);
 
+/** An attachment with its file path relative to the project root. */
+export const StoryAttachmentSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  path: z.string().optional(),
+  url: z.string().optional(),
+  note: z.string().optional(),
+});
+
 export const GetStoryOutputSchema = z.object({
   prd: z.object({
     title: z.string(),
@@ -321,8 +339,12 @@ export const GetStoryOutputSchema = z.object({
     non_goals: z.array(z.string()),
     out_of_scope: z.array(z.string()),
     global_acceptance_criteria: z.array(z.string()),
+    /** Every attachment in the PRD, for references shared across stories. */
+    attachments: z.array(StoryAttachmentSchema),
   }),
   story: StoryObjectSchema,
+  /** The attachments this story uses. */
+  attachments: z.array(StoryAttachmentSchema),
   phase: z.object({ id: z.string(), name: z.string() }).nullable(),
   dependencies: z.array(
     z.object({
@@ -348,6 +370,12 @@ export const AddStoryLogInputSchema = z.object({
     .array(z.string().min(1))
     .default([])
     .describe('Decisions, gotchas and file locations for the next agent'),
+  deviations: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Where the work departed from the PRD and why: changed criteria, extra or skipped scope, a different approach',
+    ),
 });
 
 export const AddStoryLogOutputSchema = z.object({
@@ -499,6 +527,53 @@ export const AddDecisionOutputSchema = z.object({
   decision_id: z.string(),
   superseded: z.string().nullable(),
   total_decisions: z.number().int().min(1),
+});
+
+export const AddAttachmentInputSchema = z.object({
+  filename: FilenameSchema,
+  title: z.string().min(1).describe('What it is, e.g. "Approve view mockup"'),
+  path: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'File inside the PRD folder (.prds/<prd name>/), relative to it, e.g. "mockups/approve.png". Save the file there first. Give path or url, not both.',
+    ),
+  url: z
+    .string()
+    .url()
+    .optional()
+    .describe('A web page or document link. Give path or url, not both.'),
+  note: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'What to take from it, e.g. "Layout only; colours are placeholders"',
+    ),
+  storyIds: z
+    .array(z.string().min(1))
+    .optional()
+    .describe('Stories that use it, e.g. ["US003"]'),
+});
+
+export const AddAttachmentOutputSchema = z.object({
+  attachment_id: z.string(),
+  /** The file relative to the project root, or null for a link. */
+  path: z.string().nullable(),
+  stories_updated: z.array(z.string()),
+  total_attachments: z.number().int().min(1),
+});
+
+export const RemoveAttachmentInputSchema = z.object({
+  filename: FilenameSchema,
+  attachmentId: z.string().min(1),
+});
+
+export const RemoveAttachmentOutputSchema = z.object({
+  attachment_id: z.string(),
+  stories_updated: z.array(z.string()),
+  total_attachments: z.number().int().min(0),
 });
 
 export const ResolveOpenQuestionInputSchema = z.object({
@@ -661,6 +736,13 @@ export type UpdatePrdSectionOutput = z.infer<
 >;
 export type AddDecisionInput = z.infer<typeof AddDecisionInputSchema>;
 export type AddDecisionOutput = z.infer<typeof AddDecisionOutputSchema>;
+export type AddAttachmentInput = z.infer<typeof AddAttachmentInputSchema>;
+export type AddAttachmentOutput = z.infer<typeof AddAttachmentOutputSchema>;
+export type RemoveAttachmentInput = z.infer<typeof RemoveAttachmentInputSchema>;
+export type RemoveAttachmentOutput = z.infer<
+  typeof RemoveAttachmentOutputSchema
+>;
+export type StoryAttachment = z.infer<typeof StoryAttachmentSchema>;
 export type ResolveOpenQuestionInput = z.infer<
   typeof ResolveOpenQuestionInputSchema
 >;

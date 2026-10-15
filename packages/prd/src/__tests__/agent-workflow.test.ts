@@ -249,6 +249,32 @@ describe('story logs and context', () => {
     expect(context.previous_story?.id).toBe('US001');
   });
 
+  it('stores deviations only when there are some', async () => {
+    const { filename, service, read } = await seed();
+
+    await service.addStoryLog({
+      filename,
+      storyId: 'US001',
+      whatsNew: ['a'],
+      technicalNotes: [],
+      deviations: ['Used a modal instead of a page: the sidebar has no room'],
+    });
+    await service.addStoryLog({
+      filename,
+      storyId: 'US001',
+      whatsNew: ['b'],
+      technicalNotes: [],
+      deviations: [],
+    });
+
+    const log = read().userStories.find((story) => story.id === 'US001')!.log!;
+
+    expect(log[0]!.deviations).toEqual([
+      'Used a modal instead of a page: the sidebar has no room',
+    ]);
+    expect(log[1]).not.toHaveProperty('deviations');
+  });
+
   it('keeps earlier log entries', async () => {
     const { filename, service } = await seed();
 
@@ -333,6 +359,7 @@ describe('MCP registration', () => {
 
     expect(text).toContain('get_next_story');
     expect(text).toContain('add_story_log');
+    expect(text).toContain('deviations');
     expect(text).not.toContain('run_checks');
 
     const review = fake.prompts.find((entry) => entry.name === 'review_story');
@@ -345,5 +372,6 @@ describe('MCP registration', () => {
     expect(reviewText).toContain('git diff main');
     expect(reviewText).toContain('get_story');
     expect(reviewText).toMatch(/Do not change the story status/);
+    expect(reviewText).toContain('deviations');
   });
 });

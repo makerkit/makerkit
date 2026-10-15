@@ -2,11 +2,12 @@
 
 Structured product requirements documents (PRDs) stored as JSON files in `.prds/`, plus the tools to manage them from code or from a coding agent over MCP.
 
-- **Format**: a typed `StructuredPRD` (stories, statuses, priorities, dependencies, phases, risks, decisions) with Zod schemas. Hand-written files are normalized on load.
+- **Format**: a typed `StructuredPRD` (stories, statuses, priorities, dependencies, phases, risks, decisions) with Zod schemas. Hand-written files are normalized on load. Text fields may use Markdown; list items (acceptance criteria, non-goals, ...) keep to inline Markdown, and raw HTML is not rendered.
 - **Service**: create PRDs, add and update user stories, move stories through `not_started → research → in_progress → review → completed`, export markdown.
 - **Completion gate**: a story can only be marked `completed` when the project's checks pass, so "done" means the code verifies.
 - **MCP tools**: the same operations exposed to Claude Code, Codex, OpenCode or any MCP client.
-- **Prompts**: `shape_prd` interviews you round by round (numbered questions, each with a recommended answer) and writes every decision into the PRD; `implement_story` walks an agent through one story and its hand-off log.
+- **Attachments**: files (mockups, screenshots, reference docs) live in a folder next to the PRD, `.prds/<prd name>/`, and links can be recorded too. Stories reference them by id, and `get_story` returns them with their paths.
+- **Prompts**: `shape_prd` interviews you round by round (numbered questions, each with a recommended answer and its reason) and writes every decision into the PRD; `implement_story` walks an agent through one story and its hand-off log. The same text is exported (`implementStoryPrompt`, `shapePrdPrompt`, `reviewStoryPrompt`) for UIs and agents without MCP prompt support.
 
 ## Install
 

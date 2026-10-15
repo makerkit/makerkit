@@ -7,7 +7,17 @@ export {
   type PrdVerificationResult,
 } from './prd.service';
 export * from './prd-operations';
+export {
+  attachmentProjectPath,
+  attachmentsFolder,
+  resolveAttachments,
+} from './attachment-paths';
 export { formatPrdMarkdown } from './markdown';
+export {
+  implementStoryPrompt,
+  reviewStoryPrompt,
+  shapePrdPrompt,
+} from './prompts';
 export { checkPlan, type PlanCheckItem } from './plan-check';
 export {
   PRD_TEMPLATES,
