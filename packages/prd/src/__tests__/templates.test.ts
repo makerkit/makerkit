@@ -75,7 +75,7 @@ describe('templates', () => {
 
     expect(prd.acceptanceCriteria.global.length).toBeGreaterThan(0);
     expect(prd.rolloutPlan.rolloutPhases.length).toBeGreaterThan(0);
-    expect(prd.openQuestions).toContain(
+    expect(prd.openQuestions.map((q) => q.question)).toContain(
       'Which roles can view, create, edit and delete it?',
     );
     expect(prd.changeLog[0]).toContain('saas-feature');
@@ -94,7 +94,7 @@ describe('templates', () => {
     const prd = JSON.parse(files[filename]!) as StructuredPRD;
 
     expect(prd.nonGoals).toEqual(['Mobile app']);
-    expect(prd.openQuestions[0]).toBe('Who approves notes?');
+    expect(prd.openQuestions[0]).toEqual({ id: 'Q001', question: 'Who approves notes?' });
     expect(prd.openQuestions.length).toBeGreaterThan(1);
   });
 

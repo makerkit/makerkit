@@ -62,7 +62,55 @@ export function formatPrdMarkdown(
     '### Assumptions',
     ...bullets(prd.assumptions, 'None specified'),
   );
-  lines.push('', '### Open Questions', ...bullets(prd.openQuestions, 'None'));
+  lines.push(
+    '',
+    '### Open Questions',
+    ...bullets(
+      prd.openQuestions.map(
+        (question) =>
+          `${question.id}: ${question.question}` +
+          (question.storyIds?.length ? ` (blocks ${question.storyIds.join(', ')})` : '') +
+          (question.recommended ? ` Recommended: ${question.recommended}` : ''),
+      ),
+      'None',
+    ),
+  );
+
+  if (prd.edgeCases.length > 0) {
+    lines.push('', '## Edge Cases');
+
+    for (const edgeCase of prd.edgeCases) {
+      const stories = edgeCase.storyIds?.length ? ` (${edgeCase.storyIds.join(', ')})` : '';
+      const behaviour =
+        edgeCase.status === 'decided' ? edgeCase.expectedBehavior : 'OPEN: ask, do not assume';
+
+      lines.push(`- ${edgeCase.case}${stories} -> ${behaviour}`);
+    }
+  }
+
+  const security = [
+    ...prd.technicalContracts.permissions.map((item) => `Permission: ${item}`),
+    ...prd.technicalRequirements.complianceRequirements.map((item) => `Data: ${item}`),
+    ...prd.securityConsiderations,
+  ];
+
+  if (security.length > 0) {
+    lines.push('', '## Security', ...bullets(security));
+  }
+
+  const notApplicable = Object.entries(prd.notApplicable);
+
+  if (notApplicable.length > 0) {
+    lines.push(
+      '',
+      '## Not Applicable',
+      ...notApplicable.map(([topic, reason]) => `- ${topic}${reason ? `: ${reason}` : ''}`),
+    );
+  }
+
+  if (prd.designGuidance.length > 0) {
+    lines.push('', '## Design Guidance', ...bullets(prd.designGuidance));
+  }
 
   if (prd.risks.length > 0) {
     lines.push('', '## Risks');

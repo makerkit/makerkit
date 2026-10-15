@@ -1,4 +1,5 @@
 import { resolveAttachments } from './attachment-paths';
+import { designDecisions, edgeCasesForStory } from './edge-cases';
 import type {
   AssignStoryToPhaseInput,
   AssignStoryToPhaseOutput,
@@ -348,6 +349,30 @@ export function deleteStory(
     }
   }
 
+  // An edge case linked only to the deleted story would otherwise become
+  // PRD-wide, so it is dropped; shared ones lose the link.
+  prd.edgeCases = prd.edgeCases.flatMap((edgeCase) => {
+    if (!edgeCase.storyIds?.includes(storyId)) {
+      return [edgeCase];
+    }
+
+    const storyIds = edgeCase.storyIds.filter((id) => id !== storyId);
+
+    return storyIds.length > 0 ? [{ ...edgeCase, storyIds }] : [];
+  });
+
+  for (const question of prd.openQuestions) {
+    if (question.storyIds?.includes(storyId)) {
+      const storyIds = question.storyIds.filter((id) => id !== storyId);
+
+      if (storyIds.length > 0) {
+        question.storyIds = storyIds;
+      } else {
+        delete question.storyIds;
+      }
+    }
+  }
+
   // Decisions about a deleted story are history, not live commitments.
   for (const entry of prd.decisionLog) {
     if (
@@ -585,6 +610,24 @@ export function buildStoryContext(
       prd.attachments.filter((attachment) => linked.has(attachment.id)),
     ),
     phase: phase ? { id: phase.id, name: phase.name } : null,
+    edge_cases: edgeCasesForStory(prd, story.id),
+    open_questions: prd.openQuestions.filter((question) =>
+      question.storyIds?.includes(story.id),
+    ),
+    security: {
+      permissions: prd.technicalContracts.permissions,
+      compliance: prd.technicalRequirements.complianceRequirements,
+      considerations: prd.securityConsiderations,
+    },
+    not_applicable: prd.notApplicable as Record<string, string>,
+    design: {
+      guidance: prd.designGuidance,
+      decisions: designDecisions(prd).map(({ id, decision, rationale }) => ({
+        id,
+        decision,
+        rationale,
+      })),
+    },
     dependencies: story.dependencies.map((id) => {
       const dependency = prd.userStories.find(
         (candidate) => candidate.id === id,

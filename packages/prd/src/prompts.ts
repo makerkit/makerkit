@@ -41,7 +41,12 @@ export function shapePrdPrompt(
     '4. The main entities and the words for them (add_glossary_term, including words to avoid). Describe each entity, what it holds and how it relates to the others in plain language, e.g. "Bookmark: a saved link. Belongs to one account; has many tags." Record them with update_prd_section, section "technicalContracts", value { dataModels: [...] }. The list replaces the previous one, so always pass every entity.',
     '5. Outside services (email, payments, storage, AI, SMS, maps...): for each feature that needs one, recommend a provider and list the credentials or environment variables the user must get. Record them with update_prd_section, section "technicalRequirements", value { integrationNeeds: [...] }, one entry per service, e.g. "Payments: Stripe. Needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET." The list replaces the previous one, so always pass every service.',
     '6. For each feature: what is in and out of scope, and what a person must be able to do (acceptance criteria).',
-    '7. Hard-to-reverse choices (add_decision). Unanswered questions go to update_prd_section openQuestions; answer them later with resolve_open_question.',
+    '7. What can go wrong. Take an adversarial view: assume users make mistakes, data is messy, networks and outside services fail, and two people act at once. Go through each feature and find the failure modes before the user has to think of them: missing or invalid input, empty and very large data, partial success and retries, duplicates and double submits, concurrent edits, time zones and dates, limits and quotas, outside services failing or slow, deleting and undoing. For each one, recommend what should happen. Record them with update_prd_section, section "edgeCases", value [{ case, expectedBehavior, status, storyIds }]: "decided" once the user agreed, "open" while it needs an answer. The list replaces the previous one, so always pass every case. Do not slice the work while any edge case is open.',
+    '8. Security. Switch to an attacker\'s mindset: for each feature, ask how a malicious user, a curious user of another account or tenant, or a compromised integration would abuse it, and assume they will try. Probe at least: changing ids in URLs and requests to reach other people\'s data; acting above one\'s role; hostile input (SQL, HTML and script, prompt injection into AI features, path traversal, oversized payloads); hostile file uploads; forged or replayed webhooks; brute force and account or email enumeration; abuse of costly actions (spam, quotas, paid APIs); secrets reaching the browser, logs or error messages; server requests to user-supplied URLs. Recommend a defence for each one that applies, then record: who can see and change what in update_prd_section "technicalContracts" { permissions: [...] }; sensitive data and legal duties (personal data, payments, retention, deletion) in "technicalRequirements" { complianceRequirements: [...] }; the standing rules that prevent abuse in "securityConsiderations"; and each concrete attack as an edge case with the safe behaviour (e.g. "User opens another account\'s invoice by changing the id" -> "404, nothing about it is revealed"). These lists replace the previous ones, so pass every item.',
+    '9. Risks. Run a pre-mortem: assume the feature shipped and failed badly six months later, and work out why (data loss, a security incident, cost running away, an outside dependency changing, nobody using it, legal trouble, the team unable to maintain it). Record specific risks, not generic ones, with severity, mitigation and owner via update_prd_section "risks".',
+    '10. Design: how it should look and feel. Ask for or suggest standing rules (which components and layout to use, tone of copy, mobile, how empty, loading and error states look) and record them with update_prd_section, section "designGuidance". Save mockups as attachments. Record individual design choices with add_decision and a topic starting with "design:", e.g. "design:navigation".',
+    '11. Hard-to-reverse choices (add_decision). A question the user cannot answer now goes to update_prd_section "openQuestions" as { question, why, options, recommended, storyIds }: why says what goes wrong if an agent guesses, options are the real choices, recommended is your suggestion, and storyIds are the stories it blocks. Write it so a person can answer it later without this conversation. Keep the ids of existing questions (the list replaces the previous one). Answers are recorded with resolve_open_question.',
+    '12. If a part genuinely does not apply (no outside services; no rollout plan for an internal tool), mark it with mark_not_applicable and a reason instead of leaving it empty. Never mark security or edge cases as not applicable for a feature that takes input from people or stores their data.',
     '',
     'Then slice the work:',
     '- Each story is a thin slice through every layer that a person can try once it is done, and that fits in one agent session. Put refactoring needed by later stories in its own earlier story.',
@@ -67,14 +72,16 @@ export function reviewStoryPrompt(
     `1. Call get_story for the acceptance criteria, non-goals, out-of-scope items, test seams and the story log. Read the changes with ${diff}.`,
     '2. For each acceptance criterion, decide met, partly met or not met, and cite the file or test that shows it.',
     '3. Scope: list changes the story did not ask for, especially anything in non-goals or out of scope.',
-    '4. Tests: check that tests exercise the listed test seams and cover the criteria through public behaviour.',
-    '5. Check that the story log matches what changed. Flag claims in whatsNew that the changes do not support, and departures from the spec that are not listed in deviations.',
+    '4. Tests: check that tests exercise the listed test seams and cover the criteria and the decided edge cases through public behaviour.',
+    '5. Security, as an attacker: for every new route, action or query, try to reach another user\'s or tenant\'s data by changing ids, act above your role, send hostile or oversized input, and repeat or replay requests. Check that the permissions and security rules in get_story are enforced on the server and tested. List each hole you find with the file and how to exploit it.',
+    '6. Check that the story log matches what changed. Flag claims in whatsNew that the changes do not support, and departures from the spec that are not listed in deviations.',
     '',
     'Report:',
     '- Verdict: "approve" or "send back".',
     '- Criteria: one line per criterion with its result and evidence.',
     '- Scope: extra or missing work, or "none".',
     '- Deviations: whether each one listed in the log is acceptable, or "none".',
+    '- Security: holes found, or "none".',
     '- Tests: gaps, or "none".',
     '- If sending back: a short list of specific fixes, written for the agent that will make them.',
     '',
@@ -85,12 +92,15 @@ export function reviewStoryPrompt(
 export function implementStoryPrompt(filename: string, storyId?: string) {
   const pick = storyId
     ? `Work on story ${storyId}.`
-    : 'Call get_next_story to pick the story. If none is ready, report why and stop.';
+    : 'Call get_next_story. If a story is already in progress (for example one sent back from review), finish that one first; otherwise take the story it returns. If none is ready, report why and stop.';
 
   return [
     `You are implementing a story from the PRD "${filename}". ${pick}`,
     '',
-    '1. Call get_story. Read the acceptance criteria, the non-goals and out-of-scope items, and the logs of its dependencies and of the previous story. Open the files and links in its attachments (mockups, reference docs); they show what is meant, but the acceptance criteria decide what is done. Build only what this story asks for.',
+    '1. Call get_story. If the story has notes, read them first: a story sent back from review carries the reviewer\'s feedback there, and addressing it comes before anything else. Read the acceptance criteria, the non-goals and out-of-scope items, and the logs of its dependencies and of the previous story. Open the files and links in its attachments (mockups, reference docs); they show what is meant, but the acceptance criteria decide what is done. Build only what this story asks for.',
+    '   Its edge_cases are part of the spec: implement and test each decided case as stated. If a case is still open, ask the user what should happen before building that part; never pick a behaviour yourself. Follow the design guidance and design decisions for anything a person sees.',
+    '   If open_questions lists questions that block this story, ask the user, record the answer with resolve_open_question, and only then build the part it affects.',
+    '   The security rules are binding: enforce the permissions on the server for every read and write, never trust input from the browser, and keep secrets out of the client and logs. Before finishing, attack your own change: try another user\'s ids, a lower role, hostile input and repeated requests, and add tests for what you find. Parts listed in not_applicable do not apply: do not build them.',
     '2. Call update_story_status with status "in_progress".',
     '3. Plan the change, then implement it with tests that cover the acceptance criteria.',
     '4. Run the project checks and fix what fails.',

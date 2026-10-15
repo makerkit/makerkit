@@ -8,13 +8,16 @@ import {
   type PhasesOutput,
   PrdSectionValueSchemas,
   type ReorderPhasesInput,
+  type DecideEdgeCaseInput,
+  type DecideEdgeCaseOutput,
   type ResolveOpenQuestionInput,
   type ResolveOpenQuestionOutput,
   type UpdatePhaseInput,
   type UpdatePrdSectionInput,
   type UpdatePrdSectionOutput,
 } from './schema';
-import type { CustomPhase, StructuredPRD } from './types';
+import { nextQuestionId } from './open-questions';
+import type { CustomPhase, OpenQuestion, StructuredPRD } from './types';
 
 /**
  * Pure transforms for shaping a PRD after it was created: sections, decisions,
@@ -27,7 +30,8 @@ const LIST_SECTIONS = new Set([
   'nonGoals',
   'outOfScope',
   'assumptions',
-  'openQuestions',
+  'designGuidance',
+  'securityConsiderations',
 ]);
 
 export function updatePrdSection(
@@ -69,12 +73,75 @@ export function updatePrdSection(
 
     prd.dependencies = assigned;
     updated = assigned.map((item) => item.id);
+  } else if (input.section === 'openQuestions') {
+    const items =
+      value as (typeof PrdSectionValueSchemas)['openQuestions']['_output'];
+    const storyIds = new Set(prd.userStories.map((story) => story.id));
+    const unknown = items
+      .flatMap((item) => (typeof item === 'string' ? [] : (item.storyIds ?? [])))
+      .filter((id) => !storyIds.has(id));
+
+    if (unknown.length > 0) {
+      throw new Error(
+        `Invalid value for section "openQuestions": unknown stories ${[...new Set(unknown)].join(', ')}`,
+      );
+    }
+
+    const assigned: StructuredPRD['openQuestions'] = [];
+
+    for (const item of items) {
+      const question = typeof item === 'string' ? { question: item } : item;
+      const { id, storyIds: linked, options, ...rest } = question as typeof question & {
+        id?: string;
+        storyIds?: string[];
+        options?: string[];
+      };
+
+      assigned.push({
+        ...rest,
+        id: id ?? nextQuestionId(prd, assigned),
+        ...(options?.length ? { options } : {}),
+        ...(linked?.length ? { storyIds: linked } : {}),
+      });
+    }
+
+    prd.openQuestions = assigned;
+    updated = assigned.map((item) => item.id);
+  } else if (input.section === 'edgeCases') {
+    const items =
+      value as (typeof PrdSectionValueSchemas)['edgeCases']['_output'];
+    const storyIds = new Set(prd.userStories.map((story) => story.id));
+    const unknown = items
+      .flatMap((item) => item.storyIds ?? [])
+      .filter((id) => !storyIds.has(id));
+
+    if (unknown.length > 0) {
+      throw new Error(
+        `Invalid value for section "edgeCases": unknown stories ${[...new Set(unknown)].join(', ')}`,
+      );
+    }
+
+    const assigned: StructuredPRD['edgeCases'] = [];
+
+    for (const item of items) {
+      const { storyIds: linked, ...rest } = item;
+
+      assigned.push({
+        ...rest,
+        id: item.id ?? nextId([...prd.edgeCases, ...assigned], 'EC'),
+        ...(linked?.length ? { storyIds: linked } : {}),
+      });
+    }
+
+    prd.edgeCases = assigned;
+    updated = assigned.map((item) => item.id);
   } else if (LIST_SECTIONS.has(input.section)) {
     const key = input.section as
       | 'nonGoals'
       | 'outOfScope'
       | 'assumptions'
-      | 'openQuestions';
+      | 'designGuidance'
+      | 'securityConsiderations';
 
     prd[key] = value as string[];
     updated = [key];
@@ -83,10 +150,13 @@ export function updatePrdSection(
       keyof typeof PrdSectionValueSchemas,
       | 'risks'
       | 'dependencies'
+      | 'edgeCases'
+      | 'openQuestions'
       | 'nonGoals'
       | 'outOfScope'
       | 'assumptions'
-      | 'openQuestions'
+      | 'designGuidance'
+      | 'securityConsiderations'
     >;
 
     Object.assign(prd[key], value);
@@ -148,21 +218,23 @@ export function resolveOpenQuestion(
   input: ResolveOpenQuestionInput,
   today: string,
 ): ResolveOpenQuestionOutput {
-  const wanted = normalizeText(input.question);
-  const index = prd.openQuestions.findIndex(
-    (question) => normalizeText(question) === wanted,
+  const wanted = input.question ? normalizeText(input.question) : null;
+  const index = prd.openQuestions.findIndex((question) =>
+    input.questionId
+      ? question.id === input.questionId
+      : normalizeText(question.question) === wanted,
   );
 
   if (index === -1) {
     throw new Error(
-      `Open question not found: "${input.question}". ` +
+      `Open question not found: "${input.questionId ?? input.question}". ` +
         (prd.openQuestions.length
-          ? `Open questions: ${prd.openQuestions.map((q) => `"${q}"`).join(', ')}.`
+          ? `Open questions: ${prd.openQuestions.map((q) => `${q.id} "${q.question}"`).join(', ')}.`
           : 'This PRD has no open questions.'),
     );
   }
 
-  const [question] = prd.openQuestions.splice(index, 1);
+  const [question] = prd.openQuestions.splice(index, 1) as [OpenQuestion];
 
   let decisionId: string | null = null;
 
@@ -172,19 +244,42 @@ export function resolveOpenQuestion(
       {
         filename: input.filename,
         decision: input.answer,
-        rationale: `Answers the open question: ${question}`,
-        topic: 'open-question',
+        rationale:
+          `Answers ${question.id}: ${question.question}` + (question.why ? ` (${question.why})` : ''),
+        topic: `open-question:${question.id}`,
         status: 'accepted',
       },
       today,
     ).decision_id;
   } else {
-    appendChangeLog(prd, `Resolved open question: ${question}`, today);
+    appendChangeLog(prd, `Resolved ${question.id}: ${question.question}`, today);
   }
 
   return {
     remaining_questions: prd.openQuestions.length,
     decision_id: decisionId,
+  };
+}
+
+/** Answer an open edge case: it becomes decided with the given behaviour. */
+export function decideEdgeCase(
+  prd: StructuredPRD,
+  input: DecideEdgeCaseInput,
+  today: string,
+): DecideEdgeCaseOutput {
+  const edgeCase = prd.edgeCases.find((candidate) => candidate.id === input.edgeCaseId);
+
+  if (!edgeCase) {
+    throw new Error(`Edge case "${input.edgeCaseId}" not found.`);
+  }
+
+  edgeCase.expectedBehavior = input.expectedBehavior.trim();
+  edgeCase.status = 'decided';
+  appendChangeLog(prd, `Decided ${edgeCase.id}: ${edgeCase.case}`, today);
+
+  return {
+    edge_case_id: edgeCase.id,
+    open_edge_cases: prd.edgeCases.filter((candidate) => candidate.status === 'open').length,
   };
 }
 

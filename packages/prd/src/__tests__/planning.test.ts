@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { registerPRDTools } from '../mcp';
-import { type PrdDeps, createPrdService } from '../prd.service';
+import {
+  type PrdDeps,
+  PrdRevisionConflictError,
+  createPrdService,
+} from '../prd.service';
 import { createFakeMcpServer } from '../testing/fake-mcp-server';
 import type { StructuredPRD } from '../types';
 
@@ -142,6 +146,50 @@ describe('update_prd_section', () => {
       }),
     ).rejects.toThrow(/Unrecognized key/);
   });
+
+  it('applies the change when expectedRevision matches the PRD', async () => {
+    const { filename, service, read } = await seed();
+    const revision = read().metadata.revision ?? 0;
+
+    await service.updatePrdSection({
+      filename,
+      section: 'nonGoals',
+      value: ['Mobile app'],
+      expectedRevision: revision,
+    });
+
+    expect(read().nonGoals).toEqual(['Mobile app']);
+    expect(read().metadata.revision).toBe(revision + 1);
+  });
+
+  it('rejects a change based on an older revision and leaves the PRD as is', async () => {
+    const { filename, service, read } = await seed();
+    const seen = read().metadata.revision ?? 0;
+
+    // Someone else edits the same section after it was read
+    await service.updatePrdSection({
+      filename,
+      section: 'nonGoals',
+      value: ['Changed by the agent'],
+    });
+
+    const error = await service
+      .updatePrdSection({
+        filename,
+        section: 'nonGoals',
+        value: ['Stale edit'],
+        expectedRevision: seen,
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PrdRevisionConflictError);
+    expect(error).toMatchObject({
+      code: 'PRD_REVISION_CONFLICT',
+      expectedRevision: seen,
+      currentRevision: seen + 1,
+    });
+    expect(read().nonGoals).toEqual(['Changed by the agent']);
+  });
 });
 
 describe('decisions and open questions', () => {
@@ -184,10 +232,10 @@ describe('decisions and open questions', () => {
     });
 
     expect(result).toEqual({ remaining_questions: 1, decision_id: 'DEC001' });
-    expect(read().openQuestions).toEqual(['Do we need custom fields?']);
+    expect(read().openQuestions).toEqual([{ id: 'Q002', question: 'Do we need custom fields?' }]);
     expect(read().decisionLog[0]).toMatchObject({
       decision: 'Yes, a deal has one or more contacts',
-      topic: 'open-question',
+      topic: 'open-question:Q001',
     });
   });
 
@@ -483,5 +531,414 @@ describe('add_user_story with dependencies and a phase', () => {
     expect(result.isError).toBeFalsy();
     expect(read().userStories[1]?.dependencies).toEqual(['US001']);
     expect(read().customPhases[0]?.userStoryIds).toEqual(['US002']);
+  });
+});
+
+describe('edge cases and design guidance', () => {
+  async function seedWithStories() {
+    const seeded = await seed();
+
+    for (const action of ['send an invoice', 'get paid']) {
+      await seeded.service.addUserStory({
+        filename: seeded.filename,
+        userType: 'founder',
+        action,
+        benefit: 'I get paid',
+        acceptanceCriteria: ['It works', 'It is fast'],
+        priority: 'P1',
+      });
+    }
+
+    return seeded;
+  }
+
+  it('replaces the edge cases, giving new ones an id', async () => {
+    const { filename, service, read } = await seedWithStories();
+
+    await service.updatePrdSection({
+      filename,
+      section: 'edgeCases',
+      value: [
+        { case: 'Client pays part of the invoice', status: 'open', storyIds: ['US002'] },
+        { case: 'Email bounces', expectedBehavior: 'Pause and notify', status: 'decided' },
+      ],
+    });
+
+    expect(read().edgeCases).toEqual([
+      {
+        id: 'EC001',
+        case: 'Client pays part of the invoice',
+        expectedBehavior: '',
+        status: 'open',
+        storyIds: ['US002'],
+      },
+      { id: 'EC002', case: 'Email bounces', expectedBehavior: 'Pause and notify', status: 'decided' },
+    ]);
+  });
+
+  it('rejects a decided case without behaviour and links to unknown stories', async () => {
+    const { filename, service, read } = await seedWithStories();
+
+    await expect(
+      service.updatePrdSection({
+        filename,
+        section: 'edgeCases',
+        value: [{ case: 'Bounce', status: 'decided' }],
+      }),
+    ).rejects.toThrow(/decided edge case needs its expectedBehavior/);
+
+    await expect(
+      service.updatePrdSection({
+        filename,
+        section: 'edgeCases',
+        value: [{ case: 'Bounce', storyIds: ['US999'] }],
+      }),
+    ).rejects.toThrow(/unknown stories US999/);
+
+    expect(read().edgeCases).toEqual([]);
+  });
+
+  it('gives a story its edge cases and the design rules', async () => {
+    const { filename, service } = await seedWithStories();
+
+    await service.updatePrdSection({
+      filename,
+      section: 'edgeCases',
+      value: [
+        { case: 'Partial payment', storyIds: ['US002'] },
+        { case: 'Server down', expectedBehavior: 'Retry later', status: 'decided' },
+      ],
+    });
+    await service.updatePrdSection({
+      filename,
+      section: 'designGuidance',
+      value: ['Use the kit components'],
+    });
+    await service.addDecision({
+      filename,
+      decision: 'Invoices open in a side panel',
+      rationale: 'Keeps the list in view',
+      status: 'accepted',
+      topic: 'design:invoice-detail',
+    });
+
+    const first = await service.getStory({ filename, storyId: 'US001' });
+    const second = await service.getStory({ filename, storyId: 'US002' });
+
+    expect(first.edge_cases.map((edgeCase) => edgeCase.case)).toEqual(['Server down']);
+    expect(second.edge_cases.map((edgeCase) => edgeCase.case)).toEqual([
+      'Partial payment',
+      'Server down',
+    ]);
+    expect(first.design).toEqual({
+      guidance: ['Use the kit components'],
+      decisions: [
+        expect.objectContaining({ decision: 'Invoices open in a side panel' }),
+      ],
+    });
+  });
+
+  it('drops an edge case only about a deleted story and unlinks shared ones', async () => {
+    const { filename, service, read } = await seedWithStories();
+
+    await service.updatePrdSection({
+      filename,
+      section: 'edgeCases',
+      value: [
+        { case: 'Only about US002', storyIds: ['US002'] },
+        { case: 'Shared', storyIds: ['US001', 'US002'] },
+      ],
+    });
+    await service.deleteUserStory({ filename, storyId: 'US002' });
+
+    expect(read().edgeCases.map(({ case: text, storyIds }) => [text, storyIds])).toEqual([
+      ['Shared', ['US001']],
+    ]);
+  });
+
+  it('keeps hand-edited files readable', async () => {
+    const { normalizePrd } = await import('../prd.service');
+
+    const prd = normalizePrd(
+      {
+        edgeCases: [{ id: 'EC1', case: 'Fine' }, { case: 'No id' }, 'nonsense', null],
+        designGuidance: ['Ok', 3],
+      },
+      '2026-10-15',
+    );
+
+    expect(prd.edgeCases).toEqual([
+      { id: 'EC1', case: 'Fine', expectedBehavior: '', status: 'open' },
+    ]);
+    expect(prd.designGuidance).toEqual(['Ok']);
+  });
+});
+
+describe('mark_not_applicable', () => {
+  it('marks and unmarks a part, keeping the reason', async () => {
+    const { filename, service, read } = await seed();
+
+    expect(
+      await service.markNotApplicable({
+        filename,
+        topic: 'rollout',
+        notApplicable: true,
+        reason: ' Internal tool ',
+      }),
+    ).toEqual({ topic: 'rollout', not_applicable: true, reason: 'Internal tool' });
+    expect(read().notApplicable).toEqual({ rollout: 'Internal tool' });
+
+    await service.markNotApplicable({ filename, topic: 'rollout', notApplicable: false });
+
+    expect(read().notApplicable).toEqual({});
+  });
+
+  it('rejects a change based on an older revision', async () => {
+    const { filename, service, read } = await seed();
+    const seen = read().metadata.revision ?? 0;
+
+    await service.updatePrdSection({ filename, section: 'nonGoals', value: ['x'] });
+
+    await expect(
+      service.markNotApplicable({
+        filename,
+        topic: 'risks',
+        notApplicable: true,
+        expectedRevision: seen,
+      }),
+    ).rejects.toThrow(/changed by someone else/);
+  });
+
+  it('drops unknown topics from hand-edited files', async () => {
+    const { normalizePrd } = await import('../prd.service');
+
+    expect(
+      normalizePrd({ notApplicable: { rollout: 'x', nonsense: 'y', risks: 3 } }, '2026-10-15')
+        .notApplicable,
+    ).toEqual({ rollout: 'x' });
+  });
+
+  it('tells the agent about security rules and parts that do not apply', async () => {
+    const { filename, service } = await seed();
+
+    await service.addUserStory({
+      filename,
+      userType: 'founder',
+      action: 'send an invoice',
+      benefit: 'I get paid',
+      acceptanceCriteria: ['a', 'b'],
+      priority: 'P1',
+    });
+    await service.updatePrdSection({
+      filename,
+      section: 'securityConsiderations',
+      value: ['Validate all input on the server'],
+    });
+    await service.updatePrdSection({
+      filename,
+      section: 'technicalContracts',
+      value: { permissions: ['Only the owner sees an invoice'] },
+    });
+    await service.markNotApplicable({ filename, topic: 'rollout', notApplicable: true, reason: 'Internal' });
+
+    const context = await service.getStory({ filename, storyId: 'US001' });
+
+    expect(context.security).toEqual({
+      permissions: ['Only the owner sees an invoice'],
+      compliance: [],
+      considerations: ['Validate all input on the server'],
+    });
+    expect(context.not_applicable).toEqual({ rollout: 'Internal' });
+  });
+});
+
+describe('open questions', () => {
+  async function seedWithStory() {
+    const seeded = await seed();
+
+    await seeded.service.addUserStory({
+      filename: seeded.filename,
+      userType: 'founder',
+      action: 'track deals',
+      benefit: 'I close more',
+      acceptanceCriteria: ['a', 'b'],
+      priority: 'P1',
+    });
+
+    return seeded;
+  }
+
+  it('stores questions with why, options, recommendation and blocked stories', async () => {
+    const { filename, service, read } = await seedWithStory();
+    const [existing] = read().openQuestions;
+
+    await service.updatePrdSection({
+      filename,
+      section: 'openQuestions',
+      value: [
+        existing,
+        {
+          question: 'Can a deal be reopened?',
+          why: 'Otherwise the agent decides whether lost deals are final',
+          options: ['Yes, by its owner', 'No, create a new deal'],
+          recommended: 'No, create a new deal',
+          storyIds: ['US001'],
+        },
+        'A plain question still works',
+      ],
+    });
+
+    expect(read().openQuestions.map(({ id, question }) => `${id} ${question}`)).toEqual([
+      'Q001 Can a deal have several contacts?',
+      'Q003 Can a deal be reopened?',
+      'Q004 A plain question still works',
+    ]);
+    expect(read().openQuestions[1]).toMatchObject({
+      options: ['Yes, by its owner', 'No, create a new deal'],
+      recommended: 'No, create a new deal',
+      storyIds: ['US001'],
+    });
+  });
+
+  it('never reuses the id of an answered question', async () => {
+    const { filename, service, read } = await seed();
+
+    await service.resolveOpenQuestion({
+      filename,
+      questionId: 'Q002',
+      answer: 'No',
+      recordDecision: true,
+    });
+    await service.updatePrdSection({
+      filename,
+      section: 'openQuestions',
+      value: [...read().openQuestions, 'New question'],
+    });
+
+    expect(read().openQuestions.map((q) => q.id)).toEqual(['Q001', 'Q003']);
+  });
+
+  it('rejects links to unknown stories', async () => {
+    const { filename, service } = await seed();
+
+    await expect(
+      service.updatePrdSection({
+        filename,
+        section: 'openQuestions',
+        value: [{ question: 'x', storyIds: ['US404'] }],
+      }),
+    ).rejects.toThrow(/unknown stories US404/);
+  });
+
+  it('answers by id with the revision it was based on', async () => {
+    const { filename, service, read } = await seed();
+    const seen = read().metadata.revision ?? 0;
+
+    await service.updatePrdSection({ filename, section: 'nonGoals', value: ['x'] });
+
+    await expect(
+      service.resolveOpenQuestion({
+        filename,
+        questionId: 'Q001',
+        answer: 'Yes',
+        recordDecision: true,
+        expectedRevision: seen,
+      }),
+    ).rejects.toThrow(/changed by someone else/);
+    expect(read().openQuestions).toHaveLength(2);
+  });
+
+  it('gives a story the questions that block it', async () => {
+    const { filename, service } = await seedWithStory();
+
+    await service.updatePrdSection({
+      filename,
+      section: 'openQuestions',
+      value: [{ question: 'Blocks it', storyIds: ['US001'] }, 'Does not'],
+    });
+
+    const context = await service.getStory({ filename, storyId: 'US001' });
+
+    expect(context.open_questions.map((q) => q.question)).toEqual(['Blocks it']);
+  });
+
+  it('reads plain-string questions from older files', async () => {
+    const { normalizePrd } = await import('../prd.service');
+
+    expect(
+      normalizePrd({ openQuestions: ['First', { id: 'Q007', question: 'Kept' }, '', 3] }, '2026-10-15')
+        .openQuestions,
+    ).toEqual([
+      { id: 'Q008', question: 'First' },
+      { id: 'Q007', question: 'Kept' },
+    ]);
+  });
+});
+
+describe('decide_edge_case', () => {
+  it('decides an open edge case', async () => {
+    const { filename, service, read } = await seed();
+
+    await service.updatePrdSection({
+      filename,
+      section: 'edgeCases',
+      value: [{ case: 'Duplicate contact' }, { case: 'Deal without owner' }],
+    });
+
+    expect(
+      await service.decideEdgeCase({
+        filename,
+        edgeCaseId: 'EC001',
+        expectedBehavior: ' Merge into the existing contact ',
+      }),
+    ).toEqual({ edge_case_id: 'EC001', open_edge_cases: 1 });
+    expect(read().edgeCases[0]).toMatchObject({
+      status: 'decided',
+      expectedBehavior: 'Merge into the existing contact',
+    });
+  });
+
+  it('fails for an unknown edge case', async () => {
+    const { filename, service } = await seed();
+
+    await expect(
+      service.decideEdgeCase({ filename, edgeCaseId: 'EC404', expectedBehavior: 'x' }),
+    ).rejects.toThrow(/EC404/);
+  });
+});
+
+describe('update_story_status with expectedRevision', () => {
+  it('rejects a status change based on an older revision, before running checks', async () => {
+    const { filename, service, read } = await seed();
+
+    await service.addUserStory({
+      filename,
+      userType: 'founder',
+      action: 'track deals',
+      benefit: 'I close more',
+      acceptanceCriteria: ['a', 'b'],
+      priority: 'P1',
+    });
+    const seen = read().metadata.revision ?? 0;
+
+    await service.updatePrdSection({ filename, section: 'nonGoals', value: ['x'] });
+
+    await expect(
+      service.updateStoryStatus({
+        filename,
+        storyId: 'US001',
+        status: 'blocked',
+        expectedRevision: seen,
+      }),
+    ).rejects.toThrow(/changed by someone else/);
+    expect(read().userStories[0]?.status).toBe('not_started');
+
+    await service.updateStoryStatus({
+      filename,
+      storyId: 'US001',
+      status: 'blocked',
+      expectedRevision: seen + 1,
+    });
+    expect(read().userStories[0]?.status).toBe('blocked');
   });
 });

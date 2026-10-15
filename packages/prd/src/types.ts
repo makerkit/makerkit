@@ -82,6 +82,51 @@ export interface Attachment {
   note?: string;
 }
 
+/**
+ * Something that can go wrong or is easy to get wrong (bad input, partial
+ * success, retries, permissions, concurrency, time zones, limits...) and what
+ * should happen. An open case is undecided: an agent must ask, not assume.
+ */
+export interface EdgeCase {
+  id: string;
+  case: string;
+  /** What should happen. Required once the case is decided. */
+  expectedBehavior: string;
+  status: 'open' | 'decided';
+  /** Stories it applies to; absent means the whole PRD. */
+  storyIds?: string[];
+}
+
+/**
+ * A decision the plan still needs. Written so a person can answer it without
+ * the conversation it came from: why it matters, the options and the
+ * recommended one. Answering it records a decision and removes it.
+ */
+export interface OpenQuestion {
+  id: string;
+  question: string;
+  /** What goes wrong if an agent guesses instead. */
+  why?: string;
+  options?: string[];
+  /** The suggested answer, usually one of the options. */
+  recommended?: string;
+  /** Stories that cannot be built until it is answered. */
+  storyIds?: string[];
+}
+
+/** Optional parts of a PRD that can be marked not applicable. */
+export type NotApplicableTopic =
+  | 'dataModel'
+  | 'outsideServices'
+  | 'security'
+  | 'design'
+  | 'qualityBar'
+  | 'edgeCases'
+  | 'rollout'
+  | 'measurement'
+  | 'glossary'
+  | 'risks';
+
 /** A term the team has agreed on, so people and agents use the same words. */
 export interface GlossaryTerm {
   term: string;
@@ -168,7 +213,7 @@ export interface StructuredPRD {
   nonGoals: string[];
   outOfScope: string[];
   assumptions: string[];
-  openQuestions: string[];
+  openQuestions: OpenQuestion[];
   risks: RiskItem[];
   dependencies: CrossDependency[];
 
@@ -216,6 +261,27 @@ export interface StructuredPRD {
     guardrailMetrics: string[];
   };
 
+  /** Things that can go wrong and what should happen. */
+  edgeCases: EdgeCase[];
+  /**
+   * Standing design rules for every story (components to use, tone, layout,
+   * empty and error states...). Individual design choices are decisions with a
+   * `design:` topic in the decision log.
+   */
+  designGuidance: string[];
+  /**
+   * Standing security rules for every story: input validation, secrets,
+   * rate limits, tenant isolation... Who can do what is in
+   * technicalContracts.permissions; sensitive data and compliance in
+   * technicalRequirements.complianceRequirements.
+   */
+  securityConsiderations: string[];
+  /**
+   * Parts that do not apply to this PRD, with the reason. The plan check does
+   * not ask for them and agents should not invent them.
+   */
+  notApplicable: Partial<Record<NotApplicableTopic, string>>;
+
   decisionLog: DecisionLogEntry[];
   glossary: GlossaryTerm[];
   attachments: Attachment[];
@@ -238,6 +304,8 @@ export interface StructuredPRD {
     lastStoryNumber?: number;
     /** High-water mark for attachment ids, for the same reason. */
     lastAttachmentNumber?: number;
+    /** High-water mark for open question ids, for the same reason. */
+    lastQuestionNumber?: number;
     /**
      * Incremented on every save. A write whose PRD was read at an older
      * revision is rejected, so two writers (an agent and the Board) cannot

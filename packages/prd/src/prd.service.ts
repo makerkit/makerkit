@@ -1,4 +1,7 @@
 import { attachmentsFolder, normalizeAttachments } from './attachment-paths';
+import { normalizeNotApplicable, setNotApplicable } from './applicability';
+import { normalizeEdgeCases } from './edge-cases';
+import { normalizeOpenQuestions } from './open-questions';
 import { addAttachment, removeAttachment } from './attachments';
 import { formatPrdMarkdown } from './markdown';
 import { checkPlan } from './plan-check';
@@ -7,6 +10,7 @@ import {
   addGlossaryTerm,
   deletePhase,
   reorderPhases,
+  decideEdgeCase,
   resolveOpenQuestion,
   updatePhase,
   updatePrdSection,
@@ -71,7 +75,11 @@ import type {
   UpdatePrdSectionInput,
   UpdatePrdSectionOutput,
   AddDecisionInput,
+  MarkNotApplicableInput,
+  MarkNotApplicableOutput,
   AddDecisionOutput,
+  DecideEdgeCaseInput,
+  DecideEdgeCaseOutput,
   ResolveOpenQuestionInput,
   ResolveOpenQuestionOutput,
   AddGlossaryTermInput,
@@ -120,6 +128,28 @@ export interface PrdDeps {
    * always means "the code verifies", not "the agent believes it is done".
    */
   verifyCompletion(): Promise<PrdVerificationResult>;
+}
+
+/**
+ * A write was based on an older revision of the PRD than the one on disk:
+ * someone else (an agent, Loop, another editor) changed it in between. Read
+ * the PRD again and retry; never overwrite.
+ */
+export class PrdRevisionConflictError extends Error {
+  readonly code = 'PRD_REVISION_CONFLICT';
+
+  constructor(
+    readonly filename: string,
+    readonly expectedRevision: number,
+    readonly currentRevision: number,
+  ) {
+    super(
+      `PRD "${filename}" was changed by someone else since it was read ` +
+        `(revision ${expectedRevision}, now ${currentRevision}). ` +
+        'Read it again and retry.',
+    );
+    this.name = 'PrdRevisionConflictError';
+  }
 }
 
 export function createPrdService(deps: PrdDeps) {
@@ -206,10 +236,10 @@ export class PrdService {
       nonGoals: input.nonGoals ?? defaults.nonGoals ?? [],
       outOfScope: input.outOfScope ?? defaults.outOfScope ?? [],
       assumptions: input.assumptions ?? [],
-      openQuestions: [
+      openQuestions: normalizeOpenQuestions([
         ...(input.openQuestions ?? []),
         ...(defaults.openQuestions ?? []),
-      ],
+      ]),
       risks: [],
       dependencies: [],
       userStories: [],
@@ -244,6 +274,10 @@ export class PrdService {
         targetMetrics: [],
         guardrailMetrics: [],
       },
+      edgeCases: [],
+      designGuidance: [],
+      securityConsiderations: [],
+      notApplicable: {},
       decisionLog: [],
       glossary: [],
       attachments: [],
@@ -399,6 +433,21 @@ export class PrdService {
 
     // Validate the target and the workflow before paying for verification.
     const current = await this.load(filename);
+    const currentRevision = current.metadata.revision ?? 0;
+
+    // Checked against what the caller saw, before the (slow) checks: edits
+    // made while the checks run, e.g. an agent's log entry, are expected.
+    if (
+      input.expectedRevision !== undefined &&
+      input.expectedRevision !== currentRevision
+    ) {
+      throw new PrdRevisionConflictError(
+        filename,
+        input.expectedRevision,
+        currentRevision,
+      );
+    }
+
     assertCanEnterStatus(
       current,
       findStory(current, input.storyId),
@@ -551,7 +600,7 @@ export class PrdService {
         title: s.title,
         notes: s.notes ?? null,
       })),
-      open_questions: prd.openQuestions,
+      open_questions: prd.openQuestions.map((question) => question.question),
       high_risks: highRisks.map(({ id, description, mitigation, owner }) => ({
         id,
         description,
@@ -566,8 +615,21 @@ export class PrdService {
   updatePrdSection(
     input: UpdatePrdSectionInput,
   ): Promise<UpdatePrdSectionOutput> {
-    return this.mutate(input.filename, (prd) =>
-      updatePrdSection(prd, input, this.today()),
+    return this.mutate(
+      input.filename,
+      (prd) => updatePrdSection(prd, input, this.today()),
+      input.expectedRevision,
+    );
+  }
+
+  /** Mark a part of the PRD (not) applicable, e.g. no rollout for an internal tool. */
+  markNotApplicable(
+    input: MarkNotApplicableInput,
+  ): Promise<MarkNotApplicableOutput> {
+    return this.mutate(
+      input.filename,
+      (prd) => setNotApplicable(prd, input, this.today()),
+      input.expectedRevision,
     );
   }
 
@@ -580,8 +642,18 @@ export class PrdService {
   resolveOpenQuestion(
     input: ResolveOpenQuestionInput,
   ): Promise<ResolveOpenQuestionOutput> {
-    return this.mutate(input.filename, (prd) =>
-      resolveOpenQuestion(prd, input, this.today()),
+    return this.mutate(
+      input.filename,
+      (prd) => resolveOpenQuestion(prd, input, this.today()),
+      input.expectedRevision,
+    );
+  }
+
+  decideEdgeCase(input: DecideEdgeCaseInput): Promise<DecideEdgeCaseOutput> {
+    return this.mutate(
+      input.filename,
+      (prd) => decideEdgeCase(prd, input, this.today()),
+      input.expectedRevision,
     );
   }
 
@@ -676,12 +748,31 @@ export class PrdService {
   // Persistence -------------------------------------------------------------
 
   /** Load → transform → save for operations that only touch the PRD. */
+  /**
+   * Load, change and save a PRD. With `expectedRevision` (the revision the
+   * caller's change is based on, e.g. what a person saw before editing), the
+   * change is rejected when the PRD has moved on since.
+   */
   private async mutate<T>(
     filename: string,
     transform: (prd: StructuredPRD) => T,
+    expectedRevision?: number,
   ): Promise<T> {
     const name = this.safeName(filename);
     const prd = await this.load(name);
+    const currentRevision = prd.metadata.revision ?? 0;
+
+    if (
+      expectedRevision !== undefined &&
+      expectedRevision !== currentRevision
+    ) {
+      throw new PrdRevisionConflictError(
+        name,
+        expectedRevision,
+        currentRevision,
+      );
+    }
+
     const result = transform(prd);
 
     await this.save(name, prd);
@@ -723,10 +814,10 @@ export class PrdService {
       const onDisk = await this.load(filename);
 
       if ((onDisk.metadata.revision ?? 0) !== loadedRevision) {
-        throw new Error(
-          `PRD "${filename}" was changed by someone else since it was read ` +
-            `(revision ${loadedRevision}, now ${onDisk.metadata.revision ?? 0}). ` +
-            'Read it again and retry.',
+        throw new PrdRevisionConflictError(
+          filename,
+          loadedRevision,
+          onDisk.metadata.revision ?? 0,
         );
       }
     }
@@ -799,6 +890,12 @@ function isErrnoCode(error: unknown, code: string) {
 
 export function normalizePrd(input: unknown, today: string): StructuredPRD {
   const prd = (isPlainObject(input) ? input : {}) as Partial<StructuredPRD>;
+  const openQuestions = normalizeOpenQuestions(prd.openQuestions);
+  // Ids given to questions from older files must never be handed out again
+  const highestQuestion = openQuestions.reduce(
+    (max, question) => Math.max(max, Number(/^Q(\d+)$/.exec(question.id)?.[1] ?? 0)),
+    0,
+  );
 
   return {
     // Keep top-level fields this version does not know, so a file written by
@@ -823,7 +920,7 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
     nonGoals: prd.nonGoals ?? [],
     outOfScope: prd.outOfScope ?? [],
     assumptions: prd.assumptions ?? [],
-    openQuestions: prd.openQuestions ?? [],
+    openQuestions,
     risks: prd.risks ?? [],
     dependencies: prd.dependencies ?? [],
     userStories: prd.userStories ?? [],
@@ -865,6 +962,16 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
       targetMetrics: prd.measurementPlan?.targetMetrics ?? [],
       guardrailMetrics: prd.measurementPlan?.guardrailMetrics ?? [],
     },
+    edgeCases: normalizeEdgeCases(prd.edgeCases),
+    securityConsiderations: Array.isArray(prd.securityConsiderations)
+      ? prd.securityConsiderations.filter(
+          (item): item is string => typeof item === 'string',
+        )
+      : [],
+    notApplicable: normalizeNotApplicable(prd.notApplicable),
+    designGuidance: Array.isArray(prd.designGuidance)
+      ? prd.designGuidance.filter((item): item is string => typeof item === 'string')
+      : [],
     decisionLog: prd.decisionLog ?? [],
     glossary: prd.glossary ?? [],
     attachments: normalizeAttachments(prd.attachments),
@@ -878,6 +985,8 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
       approver: prd.metadata?.approver ?? '',
       lastStoryNumber: prd.metadata?.lastStoryNumber,
       lastAttachmentNumber: prd.metadata?.lastAttachmentNumber,
+      lastQuestionNumber:
+        Math.max(prd.metadata?.lastQuestionNumber ?? 0, highestQuestion) || undefined,
       revision: prd.metadata?.revision,
     },
     progress: {

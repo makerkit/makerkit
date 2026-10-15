@@ -133,6 +133,14 @@ export const UpdateStoryStatusInputSchema = z.object({
   storyId: z.string().min(1),
   status: StoryStatusSchema,
   notes: z.string().optional(),
+  expectedRevision: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      'The PRD revision (metadata.revision) the change is based on, checked before the project checks run. When the PRD changed since, the change is rejected: read it again and retry.',
+    ),
 });
 
 export const StoryVerificationSchema = z.object({
@@ -346,6 +354,45 @@ export const GetStoryOutputSchema = z.object({
   /** The attachments this story uses. */
   attachments: z.array(StoryAttachmentSchema),
   phase: z.object({ id: z.string(), name: z.string() }).nullable(),
+  /**
+   * Edge cases for this story (linked to it, or to the whole PRD). Decided
+   * ones are binding behaviour; open ones must be asked about, not assumed.
+   */
+  edge_cases: z.array(
+    z.object({
+      id: z.string(),
+      case: z.string(),
+      expectedBehavior: z.string(),
+      status: z.enum(['open', 'decided']),
+      storyIds: z.array(z.string()).optional(),
+    }),
+  ),
+  /** Open questions that block this story: ask, do not guess. */
+  open_questions: z.array(
+    z.object({
+      id: z.string(),
+      question: z.string(),
+      why: z.string().optional(),
+      options: z.array(z.string()).optional(),
+      recommended: z.string().optional(),
+      storyIds: z.array(z.string()).optional(),
+    }),
+  ),
+  /** Who can do what, sensitive data and standing security rules. Binding. */
+  security: z.object({
+    permissions: z.array(z.string()),
+    compliance: z.array(z.string()),
+    considerations: z.array(z.string()),
+  }),
+  /** Parts of the PRD that do not apply, with the reason: do not invent them. */
+  not_applicable: z.record(z.string(), z.string()),
+  /** Standing design rules and accepted design decisions. */
+  design: z.object({
+    guidance: z.array(z.string()),
+    decisions: z.array(
+      z.object({ id: z.string(), decision: z.string(), rationale: z.string() }),
+    ),
+  }),
   dependencies: z.array(
     z.object({
       id: z.string(),
@@ -415,7 +462,19 @@ export const PrdSectionValueSchemas = {
   nonGoals: StringList,
   outOfScope: StringList,
   assumptions: StringList,
-  openQuestions: StringList,
+  openQuestions: z.array(
+    z.union([
+      z.string().min(1),
+      z.object({
+        id: z.string().optional(),
+        question: z.string().min(1),
+        why: z.string().optional(),
+        options: z.array(z.string().min(1)).optional(),
+        recommended: z.string().optional(),
+        storyIds: z.array(z.string().min(1)).optional(),
+      }),
+    ]),
+  ),
   technicalRequirements: z
     .object({
       constraints: StringList,
@@ -483,6 +542,26 @@ export const PrdSectionValueSchemas = {
       owner: z.string().optional(),
     }),
   ),
+  edgeCases: z.array(
+    z
+      .object({
+        id: z.string().optional(),
+        case: z.string().min(1),
+        expectedBehavior: z.string().default(''),
+        status: z.enum(['open', 'decided']).default('open'),
+        storyIds: z.array(z.string().min(1)).optional(),
+      })
+      .refine(
+        (edgeCase) =>
+          edgeCase.status === 'open' || edgeCase.expectedBehavior.trim().length > 0,
+        {
+          message: 'A decided edge case needs its expectedBehavior',
+          path: ['expectedBehavior'],
+        },
+      ),
+  ),
+  designGuidance: StringList,
+  securityConsiderations: StringList,
 } as const;
 
 export type PrdSection = keyof typeof PrdSectionValueSchemas;
@@ -495,16 +574,64 @@ const PRD_SECTIONS = Object.keys(PrdSectionValueSchemas) as [
 export const UpdatePrdSectionInputSchema = z.object({
   filename: FilenameSchema,
   section: z.enum(PRD_SECTIONS),
+  expectedRevision: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      'The PRD revision (metadata.revision) this change is based on. When given and the PRD changed since, the update is rejected: read it again and retry.',
+    ),
   value: z
     .unknown()
     .describe(
-      'Object sections (introduction, problemStatement, solutionOverview, technicalRequirements, technicalContracts, acceptanceCriteria, constraints, rolloutPlan, measurementPlan) take an object and only the keys given change. List sections (nonGoals, outOfScope, assumptions, openQuestions) take a string array and replace the list. risks and dependencies take an array of items and replace the list; items without an id get one.',
+      'Object sections (introduction, problemStatement, solutionOverview, technicalRequirements, technicalContracts, acceptanceCriteria, constraints, rolloutPlan, measurementPlan) take an object and only the keys given change. List sections (nonGoals, outOfScope, assumptions, designGuidance, securityConsiderations) take a string array and replace the list. openQuestions takes an array of { question, why, options, recommended, storyIds } (a plain string is accepted too) and replaces the list; keep the ids of existing questions. risks, dependencies and edgeCases take an array of items and replace the list; items without an id get one. An edge case is { case, expectedBehavior, status: "open" | "decided", storyIds? }; a decided one needs expectedBehavior, and storyIds must name existing stories.',
     ),
 });
 
 export const UpdatePrdSectionOutputSchema = z.object({
   section: z.string(),
   updated: z.array(z.string()),
+});
+
+export const NotApplicableTopicSchema = z.enum([
+  'dataModel',
+  'outsideServices',
+  'security',
+  'design',
+  'qualityBar',
+  'edgeCases',
+  'rollout',
+  'measurement',
+  'glossary',
+  'risks',
+]);
+
+export const MarkNotApplicableInputSchema = z.object({
+  filename: FilenameSchema,
+  topic: NotApplicableTopicSchema,
+  notApplicable: z
+    .boolean()
+    .default(true)
+    .describe('false marks it applicable again'),
+  reason: z
+    .string()
+    .optional()
+    .describe('Why it does not apply, e.g. "Internal tool: no rollout"'),
+  expectedRevision: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      'The PRD revision (metadata.revision) this change is based on. When given and the PRD changed since, the change is rejected: read it again and retry.',
+    ),
+});
+
+export const MarkNotApplicableOutputSchema = z.object({
+  topic: NotApplicableTopicSchema,
+  not_applicable: z.boolean(),
+  reason: z.string().nullable(),
 });
 
 export const AddDecisionInputSchema = z.object({
@@ -576,17 +703,45 @@ export const RemoveAttachmentOutputSchema = z.object({
   total_attachments: z.number().int().min(0),
 });
 
-export const ResolveOpenQuestionInputSchema = z.object({
+const ExpectedRevisionSchema = z
+  .number()
+  .int()
+  .min(0)
+  .optional()
+  .describe(
+    'The PRD revision (metadata.revision) this change is based on. When given and the PRD changed since, the change is rejected: read it again and retry.',
+  );
+
+export const ResolveOpenQuestionInputSchema = z
+  .object({
+    filename: FilenameSchema,
+    questionId: z.string().min(1).optional().describe('The question id, e.g. Q003'),
+    question: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The question text, exactly as listed (when there is no id)'),
+    answer: z.string().min(1),
+    recordDecision: z
+      .boolean()
+      .default(true)
+      .describe('Also add the answer to the decision log'),
+    expectedRevision: ExpectedRevisionSchema,
+  })
+  .refine((input) => input.questionId || input.question, {
+    message: 'Pass questionId or question',
+  });
+
+export const DecideEdgeCaseInputSchema = z.object({
   filename: FilenameSchema,
-  question: z
-    .string()
-    .min(1)
-    .describe('The open question, exactly as listed in the PRD'),
-  answer: z.string().min(1),
-  recordDecision: z
-    .boolean()
-    .default(true)
-    .describe('Also add the answer to the decision log'),
+  edgeCaseId: z.string().min(1),
+  expectedBehavior: z.string().min(1).describe('What should happen'),
+  expectedRevision: ExpectedRevisionSchema,
+});
+
+export const DecideEdgeCaseOutputSchema = z.object({
+  edge_case_id: z.string(),
+  open_edge_cases: z.number().int().min(0),
 });
 
 export const ResolveOpenQuestionOutputSchema = z.object({
@@ -731,6 +886,8 @@ export type GetStoryOutput = z.infer<typeof GetStoryOutputSchema>;
 export type AddStoryLogInput = z.infer<typeof AddStoryLogInputSchema>;
 export type AddStoryLogOutput = z.infer<typeof AddStoryLogOutputSchema>;
 export type UpdatePrdSectionInput = z.infer<typeof UpdatePrdSectionInputSchema>;
+export type MarkNotApplicableInput = z.infer<typeof MarkNotApplicableInputSchema>;
+export type MarkNotApplicableOutput = z.infer<typeof MarkNotApplicableOutputSchema>;
 export type UpdatePrdSectionOutput = z.infer<
   typeof UpdatePrdSectionOutputSchema
 >;
@@ -743,6 +900,8 @@ export type RemoveAttachmentOutput = z.infer<
   typeof RemoveAttachmentOutputSchema
 >;
 export type StoryAttachment = z.infer<typeof StoryAttachmentSchema>;
+export type DecideEdgeCaseInput = z.infer<typeof DecideEdgeCaseInputSchema>;
+export type DecideEdgeCaseOutput = z.infer<typeof DecideEdgeCaseOutputSchema>;
 export type ResolveOpenQuestionInput = z.infer<
   typeof ResolveOpenQuestionInputSchema
 >;

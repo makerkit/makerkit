@@ -1,6 +1,7 @@
 export {
   createPrdService,
   normalizePrd,
+  PrdRevisionConflictError,
   PrdService,
   type PrdDeps,
   type PrdVerificationDiagnostic,
@@ -12,6 +13,10 @@ export {
   attachmentsFolder,
   resolveAttachments,
 } from './attachment-paths';
+export {
+  NOT_APPLICABLE_TOPICS,
+  isNotApplicable,
+} from './applicability';
 export { formatPrdMarkdown } from './markdown';
 export {
   implementStoryPrompt,

@@ -50,6 +50,10 @@ import {
   UpdatePrdSectionOutputSchema,
   AddDecisionInputSchema,
   AddDecisionOutputSchema,
+  DecideEdgeCaseInputSchema,
+  DecideEdgeCaseOutputSchema,
+  MarkNotApplicableInputSchema,
+  MarkNotApplicableOutputSchema,
   ResolveOpenQuestionInputSchema,
   ResolveOpenQuestionOutputSchema,
   AddGlossaryTermInputSchema,
@@ -530,7 +534,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Update a PRD section',
       description:
-        'Change one section of a PRD after it was created: scope (nonGoals, outOfScope), assumptions, open questions, risks, external dependencies, technical requirements and contracts, global acceptance criteria, constraints, rollout and measurement plans, or the introduction, problem and solution.',
+        'Change one section of a PRD after it was created: scope (nonGoals, outOfScope), assumptions, open questions, risks, edge cases (what can go wrong and what should happen), security considerations, design guidance, external dependencies, technical requirements and contracts (including permissions and compliance), global acceptance criteria, constraints, rollout and measurement plans, or the introduction, problem and solution. For risks, edge cases and security, think adversarially: assume things fail and that someone is actively trying to abuse the feature, and write down the specific failure or attack with what should happen.',
       inputSchema: UpdatePrdSectionInputSchema,
       outputSchema: UpdatePrdSectionOutputSchema,
       annotations: IDEMPOTENT_MUTATING_TOOL,
@@ -570,11 +574,34 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
   );
 
   server.registerTool(
+    'mark_not_applicable',
+    {
+      title: 'Mark a part of the PRD not applicable',
+      description:
+        'Mark an optional part of a PRD (dataModel, outsideServices, security, design, qualityBar, edgeCases, rollout, measurement, glossary, risks) as not applicable, with a reason, so the plan check stops asking for it and agents do not invent it. Pass notApplicable false to undo. Do not mark security or edgeCases not applicable for features that take input from people or store their data.',
+      inputSchema: MarkNotApplicableInputSchema,
+      outputSchema: MarkNotApplicableOutputSchema,
+      annotations: IDEMPOTENT_MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.markNotApplicable(
+            MarkNotApplicableInputSchema.parse(input),
+          ),
+        );
+      } catch (error) {
+        return buildErrorResponse('mark_not_applicable', error);
+      }
+    },
+  );
+
+  server.registerTool(
     'resolve_open_question',
     {
       title: 'Answer an open question',
       description:
-        'Remove an open question from the PRD and, by default, record the answer in the decision log.',
+        'Answer an open question (by questionId, or by its exact text): it is removed from the PRD and, by default, the answer is recorded in the decision log.',
       inputSchema: ResolveOpenQuestionInputSchema,
       outputSchema: ResolveOpenQuestionOutputSchema,
       annotations: MUTATING_TOOL,
@@ -588,6 +615,27 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
         );
       } catch (error) {
         return buildErrorResponse('resolve_open_question', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'decide_edge_case',
+    {
+      title: 'Decide an open edge case',
+      description:
+        'Record what should happen for an open edge case; it becomes decided and binding for the stories it applies to.',
+      inputSchema: DecideEdgeCaseInputSchema,
+      outputSchema: DecideEdgeCaseOutputSchema,
+      annotations: IDEMPOTENT_MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.decideEdgeCase(DecideEdgeCaseInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('decide_edge_case', error);
       }
     },
   );

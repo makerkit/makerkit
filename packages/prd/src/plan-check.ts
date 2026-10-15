@@ -1,4 +1,6 @@
-import type { StructuredPRD } from './types';
+import { isNotApplicable } from './applicability';
+import { blockingQuestions } from './open-questions';
+import type { NotApplicableTopic, StructuredPRD } from './types';
 
 /**
  * What a plan is still missing, as items a UI can render as a checklist and an
@@ -15,6 +17,18 @@ export interface PlanCheckItem {
   /** Stories the item is about, when it is about specific stories. */
   storyIds?: string[];
 }
+
+/** The not-applicable topic each "missing" check is about. */
+const CHECK_TOPICS: Record<string, NotApplicableTopic> = {
+  'edge-cases': 'edgeCases',
+  'design-guidance': 'design',
+  security: 'security',
+  permissions: 'security',
+  'global-acceptance-criteria': 'qualityBar',
+  'target-metrics': 'measurement',
+  rollout: 'rollout',
+  'data-models': 'dataModel',
+};
 
 /** Above this many stories, grouping them into phases is recommended. */
 const PHASE_THRESHOLD = 5;
@@ -43,6 +57,66 @@ export function checkPlan(prd: StructuredPRD) {
       message: `${withoutCriteria.length} stories have no acceptance criteria`,
       severity: 'required',
       storyIds: withoutCriteria.map((story) => story.id),
+    });
+  }
+
+  // What can go wrong is where agents guess most; a plan must say.
+  if (stories.length > 0 && prd.edgeCases.length === 0) {
+    items.push({
+      id: 'edge-cases',
+      section: 'edgeCases',
+      message:
+        'List what can go wrong (bad input, partial success, retries, permissions, limits, time zones) and what should happen',
+      severity: 'required',
+    });
+  }
+
+  const openEdgeCases = prd.edgeCases.filter((edgeCase) => edgeCase.status === 'open');
+
+  if (openEdgeCases.length > 0) {
+    items.push({
+      id: 'open-edge-cases',
+      section: 'edgeCases',
+      message: `${openEdgeCases.length} edge cases are still open; decide what should happen`,
+      severity: 'required',
+      storyIds: [...new Set(openEdgeCases.flatMap((edgeCase) => edgeCase.storyIds ?? []))],
+    });
+  }
+
+  if (stories.length > 0 && prd.designGuidance.length === 0) {
+    items.push({
+      id: 'design-guidance',
+      section: 'designGuidance',
+      message:
+        'Add design guidance: the components, layout and tone stories should follow, and how empty and error states look',
+      severity: 'recommended',
+    });
+  }
+
+  // Who can do what must be stated once there is data or an outside service
+  // to protect; agents otherwise default to "any signed-in user".
+  if (
+    stories.length > 0 &&
+    prd.technicalContracts.permissions.length === 0 &&
+    (prd.technicalContracts.dataModels.length > 0 ||
+      prd.technicalRequirements.integrationNeeds.length > 0)
+  ) {
+    items.push({
+      id: 'permissions',
+      section: 'technicalContracts',
+      message:
+        'Say who can see and change what (roles, ownership, other tenants) in technicalContracts.permissions',
+      severity: 'required',
+    });
+  }
+
+  if (stories.length > 0 && prd.securityConsiderations.length === 0) {
+    items.push({
+      id: 'security',
+      section: 'securityConsiderations',
+      message:
+        'Add security considerations: think like an attacker (inputs, access to other users\' data, secrets, abuse, rate limits) and state the rules that prevent it',
+      severity: 'recommended',
     });
   }
 
@@ -82,11 +156,26 @@ export function checkPlan(prd: StructuredPRD) {
     });
   }
 
-  if (prd.openQuestions.length > 0) {
+  // A question that blocks a story must be answered before that story is
+  // built; the others improve the plan but can wait.
+  const blocking = blockingQuestions(prd);
+  const others = prd.openQuestions.filter((question) => !blocking.includes(question));
+
+  if (blocking.length > 0) {
+    items.push({
+      id: 'blocking-questions',
+      section: 'openQuestions',
+      message: `${blocking.length} open questions block stories; answer them before those stories are built`,
+      severity: 'required',
+      storyIds: [...new Set(blocking.flatMap((question) => question.storyIds ?? []))],
+    });
+  }
+
+  if (others.length > 0) {
     items.push({
       id: 'open-questions',
       section: 'openQuestions',
-      message: `${prd.openQuestions.length} open questions remain unresolved`,
+      message: `${others.length} open questions remain unresolved`,
       severity: 'recommended',
     });
   }
@@ -178,8 +267,16 @@ export function checkPlan(prd: StructuredPRD) {
     });
   }
 
+  // Parts marked not applicable are not asked for. Open edge cases still
+  // count: they were written down, so they need an answer.
+  const applicable = items.filter((item) => {
+    const topic = CHECK_TOPICS[item.id];
+
+    return !topic || !isNotApplicable(prd, topic);
+  });
+
   return {
-    ready_to_build: !items.some((item) => item.severity === 'required'),
-    items,
+    ready_to_build: !applicable.some((item) => item.severity === 'required'),
+    items: applicable,
   };
 }

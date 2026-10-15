@@ -10,6 +10,7 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises';
+import { join } from 'node:path';
 
 /** Check-only scripts that gate marking a story as completed. */
 const DEFAULT_COMPLETION_CHECKS = ['typecheck', 'lint'];
@@ -67,6 +68,18 @@ export function createScriptVerifier(
   scripts: string[] = DEFAULT_COMPLETION_CHECKS,
 ): PrdDeps['verifyCompletion'] {
   return async () => {
+    // A project can be just a folder with .prds: nothing to check then
+    if (!(await fileExists(join(rootPath, 'package.json')))) {
+      return {
+        passed: true,
+        checks: [],
+        errors: 0,
+        warnings: 0,
+        diagnostics: [],
+        messages: ['No package.json: there are no project checks to run.'],
+      } satisfies PrdVerificationResult;
+    }
+
     const checks = createRepoChecksServices(rootPath);
     const { scripts: available } = await checks.scripts.list();
     const defined = new Set(available.map((script) => script.name));

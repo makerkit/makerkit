@@ -27,6 +27,20 @@ afterEach(async () => {
 });
 
 describe('createScriptVerifier', () => {
+  it('passes with no checks when the project has no package.json', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'prd-no-package-'));
+    directories.push(root);
+
+    expect(await createScriptVerifier(root)()).toEqual({
+      passed: true,
+      checks: [],
+      errors: 0,
+      warnings: 0,
+      diagnostics: [],
+      messages: ['No package.json: there are no project checks to run.'],
+    });
+  });
+
   it('passes when every defined check exits 0', async () => {
     const root = await createProject({
       typecheck: 'node -e "process.exit(0)"',

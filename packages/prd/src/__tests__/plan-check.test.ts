@@ -39,11 +39,24 @@ describe('checkPlan', () => {
 
   it('is ready once the required items are covered, leaving recommendations', () => {
     const result = checkPlan(
-      prd({ userStories: [story('US001')], nonGoals: ['Email sync'] }),
+      prd({
+        userStories: [story('US001')],
+        nonGoals: ['Email sync'],
+        edgeCases: [
+          {
+            id: 'EC001',
+            case: 'Email already invited',
+            expectedBehavior: 'Resend the invite',
+            status: 'decided',
+          },
+        ],
+      }),
     );
 
     expect(result.ready_to_build).toBe(true);
     expect(ids(result)).toEqual([
+      'recommended:design-guidance',
+      'recommended:security',
       'recommended:scope',
       'recommended:success-metrics',
       'recommended:global-acceptance-criteria',
@@ -51,6 +64,77 @@ describe('checkPlan', () => {
       'recommended:rollout',
       'recommended:data-models',
     ]);
+  });
+
+  it('requires permissions once there is data or an outside service to protect', () => {
+    const base = {
+      userStories: [story('US001')],
+      nonGoals: ['x'],
+      outOfScope: ['y'],
+      edgeCases: [{ id: 'EC001', case: 'c', expectedBehavior: 'b', status: 'decided' as const }],
+    };
+
+    expect(ids(checkPlan(prd(base)))).not.toContain('required:permissions');
+
+    const withData = checkPlan(
+      prd({
+        ...base,
+        technicalContracts: { ...prd().technicalContracts, dataModels: ['Invoice: ...'] },
+      }),
+    );
+
+    expect(withData.ready_to_build).toBe(false);
+    expect(ids(withData)).toContain('required:permissions');
+  });
+
+  it('stops asking for parts marked not applicable, but not for open edge cases', () => {
+    const result = checkPlan(
+      prd({
+        userStories: [story('US001')],
+        nonGoals: ['x'],
+        outOfScope: ['y'],
+        technicalContracts: { ...prd().technicalContracts, dataModels: ['Invoice'] },
+        edgeCases: [{ id: 'EC001', case: 'c', expectedBehavior: '', status: 'open' }],
+        notApplicable: { rollout: 'Internal tool', measurement: '', security: 'Local only' },
+      }),
+    );
+
+    expect(ids(result)).not.toContain('recommended:rollout');
+    expect(ids(result)).not.toContain('recommended:target-metrics');
+    expect(ids(result)).not.toContain('required:permissions');
+    expect(ids(result)).not.toContain('recommended:security');
+    expect(ids(result)).toContain('required:open-edge-cases');
+  });
+
+  it('requires edge cases once there are stories', () => {
+    const result = checkPlan(
+      prd({ userStories: [story('US001')], nonGoals: ['x'], outOfScope: ['y'] }),
+    );
+
+    expect(result.ready_to_build).toBe(false);
+    expect(ids(result)).toContain('required:edge-cases');
+  });
+
+  it('blocks while an edge case is open, naming its stories', () => {
+    const result = checkPlan(
+      prd({
+        userStories: [story('US001'), story('US002')],
+        nonGoals: ['x'],
+        outOfScope: ['y'],
+        designGuidance: ['Use the kit components'],
+        edgeCases: [
+          { id: 'EC001', case: 'Partial payment', expectedBehavior: '', status: 'open', storyIds: ['US002'] },
+          { id: 'EC002', case: 'Bounce', expectedBehavior: 'Pause', status: 'decided' },
+        ],
+      }),
+    );
+
+    const open = result.items.find((item) => item.id === 'open-edge-cases');
+
+    expect(result.ready_to_build).toBe(false);
+    expect(open).toMatchObject({ severity: 'required', storyIds: ['US002'] });
+    expect(open?.message).toMatch(/^1 edge cases are still open/);
+    expect(ids(result)).not.toContain('recommended:design-guidance');
   });
 
   it('names the stories an item is about', () => {
@@ -119,5 +203,27 @@ describe('checkPlan', () => {
     );
 
     expect(ids(result)).not.toContain('recommended:test-seams');
+  });
+
+  it('requires answers to questions that block unfinished stories', () => {
+    const result = checkPlan(
+      prd({
+        userStories: [story('US001'), story('US002', { status: 'completed' })],
+        nonGoals: ['x'],
+        outOfScope: ['y'],
+        edgeCases: [{ id: 'EC001', case: 'c', expectedBehavior: 'b', status: 'decided' }],
+        openQuestions: [
+          { id: 'Q001', question: 'Blocks US001', storyIds: ['US001'] },
+          { id: 'Q002', question: 'Only blocks a completed story', storyIds: ['US002'] },
+          { id: 'Q003', question: 'Blocks nothing' },
+        ],
+      }),
+    );
+
+    const byId = Object.fromEntries(result.items.map((item) => [item.id, item]));
+
+    expect(result.ready_to_build).toBe(false);
+    expect(byId['blocking-questions']).toMatchObject({ severity: 'required', storyIds: ['US001'] });
+    expect(byId['open-questions']?.message).toMatch(/^2 open questions/);
   });
 });
