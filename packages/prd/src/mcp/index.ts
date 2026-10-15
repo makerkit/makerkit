@@ -51,6 +51,8 @@ import {
   AddDecisionInputSchema,
   AddDecisionOutputSchema,
   DecideEdgeCaseInputSchema,
+  UpdateAttachmentInputSchema,
+  UpdateAttachmentOutputSchema,
   DecideEdgeCaseOutputSchema,
   MarkNotApplicableInputSchema,
   MarkNotApplicableOutputSchema,
@@ -615,6 +617,27 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
         );
       } catch (error) {
         return buildErrorResponse('resolve_open_question', error);
+      }
+    },
+  );
+
+  server.registerTool(
+    'update_attachment',
+    {
+      title: 'Update an attachment',
+      description:
+        "Change an attachment's title or note, or which stories use it (storyIds: links are added and removed to match).",
+      inputSchema: UpdateAttachmentInputSchema,
+      outputSchema: UpdateAttachmentOutputSchema,
+      annotations: IDEMPOTENT_MUTATING_TOOL,
+    },
+    async (input) => {
+      try {
+        return buildStructuredResponse(
+          await service.updateAttachment(UpdateAttachmentInputSchema.parse(input)),
+        );
+      } catch (error) {
+        return buildErrorResponse('update_attachment', error);
       }
     },
   );

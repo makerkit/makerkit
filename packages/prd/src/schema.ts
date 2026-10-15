@@ -119,6 +119,18 @@ export const AddUserStoryInputSchema = z.object({
     .array(z.string().min(1))
     .optional()
     .describe('Ids of PRD attachments this story uses, e.g. ["ATT001"]'),
+  designNotes: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Design notes for this story only (layout, empty/loading/error states, copy) beyond the PRD design guidance',
+    ),
+  securityNotes: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Security notes for this story only: each specific way it could be abused and the defence, beyond the PRD security considerations',
+    ),
 });
 
 export const AddUserStoryOutputSchema = z.object({
@@ -182,6 +194,32 @@ export const UpdateUserStoryInputSchema = z.object({
     .array(z.string().min(1))
     .optional()
     .describe('Ids of PRD attachments this story uses, e.g. ["ATT001"]'),
+  designNotes: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Design notes for this story only (layout, empty/loading/error states, copy) beyond the PRD design guidance',
+    ),
+  securityNotes: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Security notes for this story only: each specific way it could be abused and the defence, beyond the PRD security considerations',
+    ),
+  phaseId: z
+    .string()
+    .min(1)
+    .nullable()
+    .optional()
+    .describe('Move the story to this phase; null removes it from every phase'),
+  expectedRevision: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      'The PRD revision (metadata.revision) this change is based on. When given and the PRD changed since, the change is rejected: read it again and retry.',
+    ),
 });
 
 export const UpdateUserStoryOutputSchema = z.object({
@@ -656,6 +694,15 @@ export const AddDecisionOutputSchema = z.object({
   total_decisions: z.number().int().min(1),
 });
 
+const ExpectedRevisionSchema = z
+  .number()
+  .int()
+  .min(0)
+  .optional()
+  .describe(
+    'The PRD revision (metadata.revision) this change is based on. When given and the PRD changed since, the change is rejected: read it again and retry.',
+  );
+
 export const AddAttachmentInputSchema = z.object({
   filename: FilenameSchema,
   title: z.string().min(1).describe('What it is, e.g. "Approve view mockup"'),
@@ -682,6 +729,7 @@ export const AddAttachmentInputSchema = z.object({
     .array(z.string().min(1))
     .optional()
     .describe('Stories that use it, e.g. ["US003"]'),
+  expectedRevision: ExpectedRevisionSchema,
 });
 
 export const AddAttachmentOutputSchema = z.object({
@@ -695,6 +743,24 @@ export const AddAttachmentOutputSchema = z.object({
 export const RemoveAttachmentInputSchema = z.object({
   filename: FilenameSchema,
   attachmentId: z.string().min(1),
+  expectedRevision: ExpectedRevisionSchema,
+});
+
+export const UpdateAttachmentInputSchema = z.object({
+  filename: FilenameSchema,
+  attachmentId: z.string().min(1),
+  title: z.string().min(1).optional(),
+  note: z.string().optional().describe('An empty string removes the note'),
+  storyIds: z
+    .array(z.string().min(1))
+    .optional()
+    .describe('The stories that use it: links are added and removed to match'),
+  expectedRevision: ExpectedRevisionSchema,
+});
+
+export const UpdateAttachmentOutputSchema = z.object({
+  attachment_id: z.string(),
+  stories_updated: z.array(z.string()),
 });
 
 export const RemoveAttachmentOutputSchema = z.object({
@@ -703,14 +769,6 @@ export const RemoveAttachmentOutputSchema = z.object({
   total_attachments: z.number().int().min(0),
 });
 
-const ExpectedRevisionSchema = z
-  .number()
-  .int()
-  .min(0)
-  .optional()
-  .describe(
-    'The PRD revision (metadata.revision) this change is based on. When given and the PRD changed since, the change is rejected: read it again and retry.',
-  );
 
 export const ResolveOpenQuestionInputSchema = z
   .object({
@@ -895,6 +953,8 @@ export type AddDecisionInput = z.infer<typeof AddDecisionInputSchema>;
 export type AddDecisionOutput = z.infer<typeof AddDecisionOutputSchema>;
 export type AddAttachmentInput = z.infer<typeof AddAttachmentInputSchema>;
 export type AddAttachmentOutput = z.infer<typeof AddAttachmentOutputSchema>;
+export type UpdateAttachmentInput = z.infer<typeof UpdateAttachmentInputSchema>;
+export type UpdateAttachmentOutput = z.infer<typeof UpdateAttachmentOutputSchema>;
 export type RemoveAttachmentInput = z.infer<typeof RemoveAttachmentInputSchema>;
 export type RemoveAttachmentOutput = z.infer<
   typeof RemoveAttachmentOutputSchema

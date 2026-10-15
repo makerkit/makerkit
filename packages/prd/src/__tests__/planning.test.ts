@@ -406,6 +406,80 @@ describe('test seams', () => {
   });
 });
 
+describe('story design and security notes', () => {
+  async function seedStory() {
+    const seeded = await seed();
+
+    await seeded.service.addUserStory({
+      filename: seeded.filename,
+      userType: 'founder',
+      action: 'export deals as CSV',
+      benefit: 'I can share them',
+      acceptanceCriteria: ['CSV downloads'],
+      priority: 'P1',
+      designNotes: ['Export button sits in the table toolbar'],
+      securityNotes: [
+        'Formula injection: cells starting with = are prefixed with a quote',
+      ],
+    });
+
+    return seeded;
+  }
+
+  it('stores notes when adding a story and shows them in get_story', async () => {
+    const { filename, service, read } = await seedStory();
+
+    expect(read().userStories[0]).toMatchObject({
+      designNotes: ['Export button sits in the table toolbar'],
+      securityNotes: [
+        'Formula injection: cells starting with = are prefixed with a quote',
+      ],
+    });
+
+    const context = await service.getStory({ filename, storyId: 'US001' });
+
+    expect(context.design.story_notes).toEqual([
+      'Export button sits in the table toolbar',
+    ]);
+    expect(context.security.story_notes).toHaveLength(1);
+  });
+
+  it('replaces the notes on update, dropping blank entries', async () => {
+    const { filename, service, read } = await seedStory();
+
+    const result = await service.updateUserStory({
+      filename,
+      storyId: 'US001',
+      designNotes: ['  Empty state says "No deals to export"  ', '   '],
+      securityNotes: [],
+    });
+
+    expect(result.updated_fields).toEqual(['designNotes', 'securityNotes']);
+    expect(read().userStories[0]?.designNotes).toEqual([
+      'Empty state says "No deals to export"',
+    ]);
+    expect(read().userStories[0]?.securityNotes).toEqual([]);
+  });
+
+  it('defaults to empty notes in get_story for stories without them', async () => {
+    const { filename, service } = await seed();
+
+    await service.addUserStory({
+      filename,
+      userType: 'founder',
+      action: 'rename a deal',
+      benefit: 'names stay accurate',
+      acceptanceCriteria: ['Name saved'],
+      priority: 'P2',
+    });
+
+    const context = await service.getStory({ filename, storyId: 'US001' });
+
+    expect(context.design.story_notes).toEqual([]);
+    expect(context.security.story_notes).toEqual([]);
+  });
+});
+
 describe('MCP registration', () => {
   it('exposes the planning tools and the shape_prd prompt', async () => {
     const fake = createFakeMcpServer();
@@ -635,6 +709,7 @@ describe('edge cases and design guidance', () => {
       decisions: [
         expect.objectContaining({ decision: 'Invoices open in a side panel' }),
       ],
+      story_notes: [],
     });
   });
 
@@ -747,6 +822,7 @@ describe('mark_not_applicable', () => {
       permissions: ['Only the owner sees an invoice'],
       compliance: [],
       considerations: ['Validate all input on the server'],
+      story_notes: [],
     });
     expect(context.not_applicable).toEqual({ rollout: 'Internal' });
   });
@@ -940,5 +1016,44 @@ describe('update_story_status with expectedRevision', () => {
       expectedRevision: seen + 1,
     });
     expect(read().userStories[0]?.status).toBe('blocked');
+  });
+});
+
+describe('update_user_story with phase and revision', () => {
+  it('moves the story to a phase in the same write, and refuses stale edits', async () => {
+    const { filename, service, read } = await seed();
+
+    await service.addUserStory({
+      filename,
+      userType: 'founder',
+      action: 'track deals',
+      benefit: 'I close more',
+      acceptanceCriteria: ['a', 'b'],
+      priority: 'P1',
+    });
+    const { phase } = await service.createCustomPhase({
+      filename,
+      name: 'MVP',
+      description: '',
+      color: '#4f46e5',
+    });
+    const seen = read().metadata.revision ?? 0;
+
+    const result = await service.updateUserStory({
+      filename,
+      storyId: 'US001',
+      title: 'Track deals',
+      phaseId: phase.id,
+      expectedRevision: seen,
+    });
+
+    expect(result.updated_fields).toEqual(['title', 'phase']);
+    expect(read().customPhases[0]?.userStoryIds).toEqual(['US001']);
+    expect(read().metadata.revision).toBe(seen + 1);
+
+    await expect(
+      service.updateUserStory({ filename, storyId: 'US001', title: 'Stale', expectedRevision: seen }),
+    ).rejects.toThrow(/changed by someone else/);
+    expect(read().userStories[0]?.title).toBe('Track deals');
   });
 });

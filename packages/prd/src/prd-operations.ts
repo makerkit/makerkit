@@ -100,7 +100,8 @@ const USER_STORY_SENTENCE =
   /^As an?\s+(.+?),\s*I want to\s+(.+?)\s+so that\s+(.+)$/i;
 
 /** Splits the rendered sentence back into its parts so one can be patched. */
-function splitUserStory(sentence: string) {
+/** The parts of an "As a X, I want to Y so that Z" story, or undefined. */
+export function splitUserStory(sentence: string) {
   const match = USER_STORY_SENTENCE.exec(sentence.trim());
 
   if (!match) {
@@ -172,6 +173,16 @@ export function updateStory(
     updated.push('testSeams');
   }
 
+  if (input.designNotes !== undefined) {
+    story.designNotes = withoutBlanks(input.designNotes);
+    updated.push('designNotes');
+  }
+
+  if (input.securityNotes !== undefined) {
+    story.securityNotes = withoutBlanks(input.securityNotes);
+    updated.push('securityNotes');
+  }
+
   if (input.businessValue !== undefined) {
     story.businessValue = input.businessValue;
     updated.push('businessValue');
@@ -213,11 +224,21 @@ export function updateStory(
     updated.push('attachmentIds');
   }
 
+  // In the same write, so a story and its phase never change half-way
+  if (input.phaseId !== undefined) {
+    assignStoryToPhase(
+      prd,
+      { filename: input.filename, storyId: story.id, phaseId: input.phaseId },
+      today,
+    );
+    updated.push('phase');
+  }
+
   if (updated.length === 0) {
     throw new Error(
       `No fields supplied to update on ${story.id}. Provide at least one of: ` +
         'title, userType, action, benefit, businessValue, acceptanceCriteria, ' +
-        'priority, estimatedComplexity, dependencies, notes, testSeams, attachmentIds.',
+        'priority, estimatedComplexity, dependencies, notes, testSeams, designNotes, securityNotes, attachmentIds, phaseId.',
     );
   }
 
@@ -618,10 +639,12 @@ export function buildStoryContext(
       permissions: prd.technicalContracts.permissions,
       compliance: prd.technicalRequirements.complianceRequirements,
       considerations: prd.securityConsiderations,
+      story_notes: story.securityNotes ?? [],
     },
     not_applicable: prd.notApplicable as Record<string, string>,
     design: {
       guidance: prd.designGuidance,
+      story_notes: story.designNotes ?? [],
       decisions: designDecisions(prd).map(({ id, decision, rationale }) => ({
         id,
         decision,
@@ -660,4 +683,8 @@ export function appendStoryLog(
   story.log = [...(story.log ?? []), entry];
 
   return { story_id: story.id, entries: story.log.length };
+}
+
+function withoutBlanks(entries: string[]) {
+  return entries.map((entry) => entry.trim()).filter(Boolean);
 }

@@ -2,7 +2,7 @@ import { attachmentsFolder, normalizeAttachments } from './attachment-paths';
 import { normalizeNotApplicable, setNotApplicable } from './applicability';
 import { normalizeEdgeCases } from './edge-cases';
 import { normalizeOpenQuestions } from './open-questions';
-import { addAttachment, removeAttachment } from './attachments';
+import { addAttachment, removeAttachment, updateAttachment } from './attachments';
 import { formatPrdMarkdown } from './markdown';
 import { checkPlan } from './plan-check';
 import {
@@ -70,6 +70,8 @@ import type {
   AddAttachmentOutput,
   RemoveAttachmentInput,
   RemoveAttachmentOutput,
+  UpdateAttachmentInput,
+  UpdateAttachmentOutput,
   CheckPlanOutput,
   ListTemplatesOutput,
   UpdatePrdSectionInput,
@@ -340,6 +342,12 @@ export class PrdService {
       estimatedComplexity: complexity,
       dependencies: [],
       ...(input.testSeams?.length ? { testSeams: input.testSeams } : {}),
+      ...(input.designNotes?.length
+        ? { designNotes: input.designNotes }
+        : {}),
+      ...(input.securityNotes?.length
+        ? { securityNotes: input.securityNotes }
+        : {}),
     });
 
     // Validated against the in-memory PRD; a bad id throws before anything is saved.
@@ -381,13 +389,11 @@ export class PrdService {
   async updateUserStory(
     input: UpdateUserStoryInput,
   ): Promise<UpdateUserStoryOutput> {
-    const filename = this.safeName(input.filename);
-    const prd = await this.load(filename);
-    const result = updateStory(prd, input, this.today());
-
-    await this.save(filename, prd);
-
-    return result;
+    return this.mutate(
+      input.filename,
+      (prd) => updateStory(prd, input, this.today()),
+      input.expectedRevision,
+    );
   }
 
   async deleteUserStory(
@@ -716,7 +722,6 @@ export class PrdService {
   /** Files must already be in the PRD's folder, `.prds/<prd name>/`. */
   async addAttachment(input: AddAttachmentInput): Promise<AddAttachmentOutput> {
     const filename = this.safeName(input.filename);
-    const prd = await this.load(filename);
 
     if (input.path) {
       const folder = attachmentsFolder(filename);
@@ -729,19 +734,30 @@ export class PrdService {
       }
     }
 
-    const result = addAttachment(prd, { ...input, filename }, this.today());
+    return this.mutate(
+      filename,
+      (prd) => addAttachment(prd, { ...input, filename }, this.today()),
+      input.expectedRevision,
+    );
+  }
 
-    await this.save(filename, prd);
-
-    return result;
+  /** Changes an attachment's title, note or the stories that use it. */
+  updateAttachment(input: UpdateAttachmentInput): Promise<UpdateAttachmentOutput> {
+    return this.mutate(
+      input.filename,
+      (prd) => updateAttachment(prd, input, this.today()),
+      input.expectedRevision,
+    );
   }
 
   /** Removes the attachment from the PRD and its stories; the file stays. */
   async removeAttachment(
     input: RemoveAttachmentInput,
   ): Promise<RemoveAttachmentOutput> {
-    return this.mutate(input.filename, (prd) =>
-      removeAttachment(prd, input.attachmentId, this.today()),
+    return this.mutate(
+      input.filename,
+      (prd) => removeAttachment(prd, input.attachmentId, this.today()),
+      input.expectedRevision,
     );
   }
 

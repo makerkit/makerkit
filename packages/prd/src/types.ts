@@ -65,6 +65,16 @@ export interface UserStory {
   testSeams?: string[];
   /** Ids of the PRD's attachments this story uses, e.g. a mockup. */
   attachmentIds?: string[];
+  /**
+   * Design notes for this story only: layout, states and copy that the PRD's
+   * design guidance does not cover. Binding, like the guidance.
+   */
+  designNotes?: string[];
+  /**
+   * Security notes for this story only: the specific abuse to defend against
+   * and how. Binding, like the PRD's security considerations.
+   */
+  securityNotes?: string[];
 }
 
 /**

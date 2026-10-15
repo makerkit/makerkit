@@ -1,7 +1,12 @@
 import { attachmentProjectPath } from './attachment-paths';
 import { appendChangeLog, findAttachment, findStory } from './prd-operations';
 import { assertSafeRelativePath } from './safe-file-name';
-import type { AddAttachmentInput, RemoveAttachmentOutput } from './schema';
+import type {
+  AddAttachmentInput,
+  RemoveAttachmentOutput,
+  UpdateAttachmentInput,
+  UpdateAttachmentOutput,
+} from './schema';
 import type { StructuredPRD } from './types';
 
 /**
@@ -106,4 +111,50 @@ export function removeAttachment(
     stories_updated: storiesUpdated,
     total_attachments: prd.attachments.length,
   };
+}
+
+/**
+ * Changes an attachment's title or note, and which stories use it: with
+ * storyIds, links are added and removed so exactly those stories use it.
+ */
+export function updateAttachment(
+  prd: StructuredPRD,
+  input: UpdateAttachmentInput,
+  today: string,
+): UpdateAttachmentOutput {
+  const attachment = findAttachment(prd, input.attachmentId);
+
+  if (input.title !== undefined) {
+    attachment.title = input.title;
+  }
+
+  if (input.note !== undefined) {
+    if (input.note.trim()) {
+      attachment.note = input.note;
+    } else {
+      delete attachment.note;
+    }
+  }
+
+  const storiesUpdated: string[] = [];
+
+  if (input.storyIds !== undefined) {
+    const wanted = new Set(input.storyIds.map((id) => findStory(prd, id).id));
+
+    for (const story of prd.userStories) {
+      const linked = story.attachmentIds?.includes(attachment.id) ?? false;
+
+      if (wanted.has(story.id) && !linked) {
+        story.attachmentIds = [...(story.attachmentIds ?? []), attachment.id];
+        storiesUpdated.push(story.id);
+      } else if (!wanted.has(story.id) && linked) {
+        story.attachmentIds = story.attachmentIds!.filter((id) => id !== attachment.id);
+        storiesUpdated.push(story.id);
+      }
+    }
+  }
+
+  appendChangeLog(prd, `Updated attachment ${attachment.id} (${attachment.title})`, today);
+
+  return { attachment_id: attachment.id, stories_updated: storiesUpdated };
 }

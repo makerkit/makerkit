@@ -109,6 +109,7 @@ describe('registerPRDTools', () => {
       'remove_attachment',
       'reorder_phases',
       'resolve_open_question',
+      'update_attachment',
       'update_phase',
       'update_prd_section',
       'update_story_status',

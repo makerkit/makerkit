@@ -209,6 +209,14 @@ function formatStory(story: UserStory): string[] {
     lines.push('', `**Attachments:** ${story.attachmentIds.join(', ')}`);
   }
 
+  if (story.designNotes?.length) {
+    lines.push('', '**Design Notes:**', ...bullets(story.designNotes));
+  }
+
+  if (story.securityNotes?.length) {
+    lines.push('', '**Security Notes:**', ...bullets(story.securityNotes));
+  }
+
   if (story.verification) {
     lines.push(
       '',

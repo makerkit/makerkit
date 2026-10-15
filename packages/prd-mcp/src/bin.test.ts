@@ -42,7 +42,7 @@ describe('makerkit-prd-mcp', () => {
     const { tools } = await client.listTools();
     const { prompts } = await client.listPrompts();
 
-    expect(tools).toHaveLength(30);
+    expect(tools).toHaveLength(31);
     expect(tools.map((tool) => tool.name)).toEqual(
       expect.arrayContaining([
         'add_attachment',

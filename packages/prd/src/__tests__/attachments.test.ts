@@ -426,3 +426,50 @@ describe('normalizePrd', () => {
     ).toEqual([]);
   });
 });
+
+describe('update_attachment and revision checks', () => {
+  it('changes the title, clears the note and sets exactly the linked stories', async () => {
+    const { filename, service, read } = await seed();
+
+    await service.addAttachment({
+      filename,
+      title: 'Editor mockup',
+      path: 'mockups/editor.png',
+      note: 'Layout only',
+      storyIds: ['US001'],
+    });
+
+    expect(
+      await service.updateAttachment({
+        filename,
+        attachmentId: 'ATT001',
+        title: 'Editor (v2)',
+        note: '',
+        storyIds: ['US002'],
+      }),
+    ).toEqual({ attachment_id: 'ATT001', stories_updated: ['US001', 'US002'] });
+    expect(read().attachments[0]).toEqual({
+      id: 'ATT001',
+      title: 'Editor (v2)',
+      path: 'mockups/editor.png',
+    });
+    expect(read().userStories.map((story) => story.attachmentIds ?? [])).toEqual([[], ['ATT001']]);
+  });
+
+  it('rejects adding or removing based on an older revision', async () => {
+    const { filename, service, read } = await seed();
+    const seen = read().metadata.revision ?? 0;
+
+    await service.updatePrdSection({ filename, section: 'nonGoals', value: ['x'] });
+
+    await expect(
+      service.addAttachment({
+        filename,
+        title: 'Docs',
+        url: 'https://example.com',
+        expectedRevision: seen,
+      }),
+    ).rejects.toThrow(/changed by someone else/);
+    expect(read().attachments).toEqual([]);
+  });
+});
