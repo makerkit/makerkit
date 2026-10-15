@@ -51,13 +51,15 @@ export class DepsUpgradeAdvisorService {
 
     const outdated = await this.getOutdatedDependencies(warnings);
 
-    const filtered = outdated.filter((item) => {
-      if (includeDevDependencies) {
-        return true;
-      }
+    const filtered = mergeDuplicateRows(
+      outdated.filter((item) => {
+        if (includeDevDependencies) {
+          return true;
+        }
 
-      return !item.dependencyType.toLowerCase().includes('dev');
-    });
+        return !item.dependencyType.toLowerCase().includes('dev');
+      }),
+    );
 
     const recommendations = filtered
       .map((item) => toRecommendation(item, includeMajor))
@@ -94,14 +96,8 @@ export class DepsUpgradeAdvisorService {
       },
       recommendations,
       grouped_commands: {
-        safe_batch_command: buildBatchCommand(
-          safe.map((item) => `${item.package}@${item.recommended_target}`),
-        ),
-        major_batch_command: includeMajor
-          ? buildBatchCommand(
-              major.map((item) => `${item.package}@${item.recommended_target}`),
-            )
-          : null,
+        safe_batch_command: buildBatchCommand(safe),
+        major_batch_command: includeMajor ? buildBatchCommand(major) : null,
       },
       warnings,
     };
@@ -164,7 +160,10 @@ function toRecommendation(
     risk,
     potentially_breaking: updateType === 'major',
     recommended_target: target,
-    recommended_command: `pnpm up -r ${dependency.package}@${target}`,
+    recommended_command: buildUpgradeCommand(
+      dependency.workspace,
+      `${dependency.package}@${target}`,
+    ),
     reason:
       updateType === 'major' && !includeMajor
         ? 'Major version available and potentially breaking; recommended target is the highest non-major range match.'
@@ -180,32 +179,38 @@ function normalizeOutdatedJson(value: unknown): OutdatedDependency[] {
   if (isRecord(value)) {
     const rows: OutdatedDependency[] = [];
 
-    for (const [workspace, data] of Object.entries(value)) {
+    for (const [key, data] of Object.entries(value)) {
       if (!isRecord(data)) {
         continue;
       }
 
+      // pnpm prints a flat { [package]: info } object, with the workspaces
+      // that depend on it in info.dependentPackages.
+      if (readString(data, 'current')) {
+        const row = toOutdatedRow(
+          stripPnpmKeySuffix(key),
+          readDependentNames(data),
+          data,
+        );
+
+        if (row) {
+          rows.push(row);
+        }
+
+        continue;
+      }
+
+      // Older shape: { [workspace]: { [package]: info } }.
       for (const [name, info] of Object.entries(data)) {
         if (!isRecord(info)) {
           continue;
         }
 
-        const current = readString(info, 'current');
-        const wanted = readString(info, 'wanted');
-        const latest = readString(info, 'latest');
+        const row = toOutdatedRow(name, key, info);
 
-        if (!current || !wanted || !latest) {
-          continue;
+        if (row) {
+          rows.push(row);
         }
-
-        rows.push({
-          package: name,
-          workspace,
-          dependencyType: readString(info, 'dependencyType') ?? 'unknown',
-          current,
-          wanted,
-          latest,
-        });
       }
     }
 
@@ -213,6 +218,90 @@ function normalizeOutdatedJson(value: unknown): OutdatedDependency[] {
   }
 
   return [];
+}
+
+/**
+ * pnpm lists a package once per dependency type ("pkg@1.0.0" and
+ * "pkg@1.0.0 (dev)"). Count it once: join the workspaces and keep the
+ * production type, so the summary does not double-count.
+ */
+function mergeDuplicateRows(rows: OutdatedDependency[]) {
+  const merged = new Map<string, OutdatedDependency>();
+
+  for (const row of rows) {
+    const key = `${row.package}@${row.current}->${row.latest}`;
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, row);
+      continue;
+    }
+
+    const workspaces = new Set([
+      ...existing.workspace.split(', '),
+      ...row.workspace.split(', '),
+    ]);
+
+    merged.set(key, {
+      ...existing,
+      workspace: [...workspaces].join(', '),
+      dependencyType: existing.dependencyType.toLowerCase().includes('dev')
+        ? row.dependencyType
+        : existing.dependencyType,
+    });
+  }
+
+  return [...merged.values()];
+}
+
+function toOutdatedRow(
+  name: string,
+  workspace: string,
+  info: Record<string, unknown>,
+): OutdatedDependency | null {
+  const current = readString(info, 'current');
+  const wanted = readString(info, 'wanted');
+  const latest = readString(info, 'latest');
+
+  if (!current || !wanted || !latest) {
+    return null;
+  }
+
+  return {
+    package: name,
+    workspace,
+    dependencyType: readString(info, 'dependencyType') ?? 'unknown',
+    current,
+    wanted,
+    latest,
+  };
+}
+
+/**
+ * A package listed under more than one dependency type gets a key like
+ * "lucide-react@1.56.0" or "lucide-react@1.56.0 (dev)".
+ */
+function stripPnpmKeySuffix(key: string) {
+  const name = key.replace(/ \([^)]*\)$/, '');
+  const versionAt = name.indexOf('@', 1);
+
+  return versionAt > 0 ? name.slice(0, versionAt) : name;
+}
+
+function readDependentNames(info: Record<string, unknown>) {
+  const dependents = info['dependentPackages'];
+
+  if (!Array.isArray(dependents)) {
+    return 'root';
+  }
+
+  const names = dependents
+    .map((dependent) =>
+      isRecord(dependent) ? readString(dependent, 'name') : null,
+    )
+    .filter((name) => name !== null);
+
+  return names.length > 0 ? names.join(', ') : 'root';
 }
 
 function normalizeOutdatedItem(value: unknown): OutdatedDependency | null {
@@ -286,12 +375,42 @@ function parseSemver(input: string) {
   };
 }
 
-function buildBatchCommand(upgrades: string[]) {
-  if (upgrades.length === 0) {
+/**
+ * Scope the upgrade to the workspaces that depend on the package. An unscoped
+ * `pnpm up -r pkg@x` rewrites every workspace that uses pkg, which downgrades
+ * one that already sits on a newer major (pnpm's JSON lists one entry per
+ * package, so such a workspace may not appear in the report at all).
+ */
+function buildUpgradeCommand(workspace: string, specs: string) {
+  const filters =
+    workspace === 'root'
+      ? []
+      : workspace.split(', ').map((name) => `--filter ${name}`);
+
+  return filters.length > 0
+    ? `pnpm ${filters.join(' ')} up ${specs}`
+    : `pnpm up -r ${specs}`;
+}
+
+function buildBatchCommand(recommendations: DepsUpgradeRecommendation[]) {
+  if (recommendations.length === 0) {
     return null;
   }
 
-  return `pnpm up -r ${upgrades.join(' ')}`;
+  // One command per set of workspaces, so each upgrade keeps its own scope.
+  const specsByWorkspace = new Map<string, Set<string>>();
+
+  for (const item of recommendations) {
+    const specs = specsByWorkspace.get(item.workspace) ?? new Set<string>();
+    specs.add(`${item.package}@${item.recommended_target}`);
+    specsByWorkspace.set(item.workspace, specs);
+  }
+
+  return [...specsByWorkspace]
+    .map(([workspace, specs]) =>
+      buildUpgradeCommand(workspace, [...specs].join(' ')),
+    )
+    .join(' && ');
 }
 
 function sortRecommendations(
