@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/mailpit",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Lets coding agents read the emails your app sends in local development through Mailpit, to test sign-up, invites and password resets.",
   "keywords": [
     "ai-agents",

@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/i18n",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Lets coding agents read and edit JSON translation files stored as <locale>/<namespace>.json (i18next, next-i18next, next-intl with namespace files): list, update, stats, add and remove locales and namespaces.",
   "keywords": [
     "ai-agents",

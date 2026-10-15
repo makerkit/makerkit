@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/env-inspector",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Shows coding agents which .env file each variable comes from, and which variables are missing or invalid for each mode, without exposing secret values.",
   "keywords": [
     "ai-agents",

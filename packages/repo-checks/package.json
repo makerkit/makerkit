@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/repo-checks",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Structured typecheck, lint and format diagnostics, script guidance and dependency upgrade advice for coding agents, in any Node repo.",
   "keywords": [
     "ai-agents",

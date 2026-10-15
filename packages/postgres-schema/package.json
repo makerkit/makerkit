@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/postgres-schema",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Lets coding agents read a Postgres database schema: tables, columns, foreign keys, indexes, functions and enums, from the live database or from declarative SQL schema files.",
   "keywords": [
     "ai-agents",

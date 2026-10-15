@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/prd-mcp",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "MCP server for structured PRDs in .prds/. Lets Claude Code, Codex, OpenCode and other agents read and update PRDs and stories.",
   "keywords": [
     "ai-agents",
