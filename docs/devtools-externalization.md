@@ -65,6 +65,10 @@ Package notes:
 - **env-inspector.** The engine (scanning the workspace, Next.js `.env` precedence, dev and production modes) is shared. The variable list is supplied by the user as a schema; each kit passes its own. The scanner's direct `fs` calls must be injected first. Values are never returned to agents unless asked for explicitly.
 - **mailpit.** The Mailpit HTTP API, with the port and the "how to start it" hint as settings. Email template rendering (React Email registry) stays in the kits for now.
 
+## On hold
+
+- **`@makerkit/postgres-schema`** (decided Oct 15 2026): the database tools stay in the kits for now. The package stays in this repo, tested but unpublished and not rolled out. Bugs it found that also exist in the kits' copies (cross-schema and composite foreign keys, index column order, merged same-named enums, schema-file parsing missing functions) can be fixed in the kits directly.
+
 ## Kit adapter settings
 
 Each kit registers the packages with `{ prefix: 'kit_' }` so its tool names stay the same. Per package:
@@ -73,7 +77,7 @@ Each kit registers the packages with `{ prefix: 'kit_' }` so its tool names stay
 |---|---|---|
 | `@makerkit/prd` | `createNodePrdDeps(root, { verifyCompletion: runChecks })` | same |
 | `@makerkit/repo-checks` | kit script catalog (Supabase and Stripe scripts, Oxlint/Oxfmt wording); no prefix needed (`run_checks` etc. are unprefixed today) | same |
-| `@makerkit/postgres-schema` | `includeSchemas: ['public', 'kit']`, `schemaFiles: { dir: 'apps/web/supabase/schemas', topicMap, topics }`, `functionPurposes`; database URL from `supabase/config.toml` (kit `lib/supabase-config`) | `excludeTables: ['_prisma_migrations']` (Prisma); database URL from `DATABASE_URL`, default port 54333 |
+| `@makerkit/postgres-schema` (on hold) | `includeSchemas: ['public', 'kit']`, `schemaFiles: { dir: 'apps/web/supabase/schemas', topicMap, topics }`, `functionPurposes`; database URL from `supabase/config.toml` (kit `lib/supabase-config`) | `excludeTables: ['_prisma_migrations']` (Prisma); database URL from `DATABASE_URL`, default port 54333 |
 | `@makerkit/i18n` | Next.js: `messagesDir: 'apps/web/i18n/messages'`; TanStack: `packages/i18n/src/messages` (this fixes tanstack-supabase, which pointed at a folder it does not have) | same split by framework |
 | `@makerkit/env-inspector` | `model` (the kit's `model.ts`), `apps: [{ name: 'web', path: 'apps/web' }]`, `revealValues: true`; Next.js kits use `NEXTJS_ENV_FILES`, TanStack kits `VITE_ENV_FILES` (development and production only) | same; TanStack Prisma/Drizzle switch to `VITE_ENV_FILES` (they use the Next.js order today, which is wrong for Vite) |
 | `@makerkit/mailpit` | `url` from `supabase/config.toml` (mailbox port, 54324), Supabase start hint; register with `statusTool: false` (the kits' `dev` tools already register `kit_mailbox_status`) | `startHint: 'Start local services with "pnpm compose:dev:up".'`, `docker: { composeFile: 'docker-compose.dev.yml', service: 'mailpit' }` |
