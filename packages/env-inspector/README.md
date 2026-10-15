@@ -7,7 +7,7 @@ Lets coding agents check a project's environment variables without seeing secret
 - **Redaction**: values of secret variables are returned as `[REDACTED]` by default.
 - **Editing**: sets one variable in the right file, or reads and writes a whole `.env` file. Only the configured `.env` file names can be read or written.
 
-Works with single-app projects and monorepos (one or more apps).
+Works with single-app projects and monorepos. Apps are not detected automatically: without the `apps` setting the project root is read as one app, and monorepos list their apps.
 
 ## Tools
 
@@ -148,6 +148,8 @@ createEnvInspectorDeps(root, {
 ```
 
 `env_update` without `file` writes to `writeTargets[mode].nonSecret` only when the model entry has `secret: false`. Every other variable, including unknown variables, public-prefixed variables and model entries without a `secret` flag, goes to `writeTargets[mode].secret`, which is usually gitignored.
+
+The two rules differ on purpose. Redaction decides what an agent may see, so a public prefix is enough to show a value. Choosing the write file decides what may end up in a committed file, so only an explicit `secret: false` sends a value there.
 
 `findWorkspaceRoot(startPath)` from `@makerkit/env-inspector/node` walks up at most 6 directories to a directory that contains `pnpm-workspace.yaml`, `lerna.json` or `nx.json`, or a `package.json` with `workspaces`, and returns `startPath` when it finds none. Pass `{ markers, maxDepth }` to change this.
 
