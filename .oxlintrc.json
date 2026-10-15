@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "import", "typescript"],
+  "ignorePatterns": ["**/dist/**", "**/node_modules/**", "supabase/**"],
+  "rules": {
+    "no-undef": "off",
+    "react/react-in-jsx-scope": "off",
+    "import/no-named-as-default-member": "off",
+    "import/no-named-as-default": "off",
+    "typescript/no-namespace": "off",
+    "typescript/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ]
+  }
+}

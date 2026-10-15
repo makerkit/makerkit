@@ -1,16 +1,13 @@
 {
   "name": "@makerkit/data-loader-supabase-nextjs",
-  "version": "1.2.4",
+  "version": "1.2.5",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/makerkit/makerkit",
+    "directory": "packages/data-loader/supabase/nextjs"
+  },
   "main": "./index.js",
-  "dependencies": {
-    "@makerkit/data-loader-supabase-core": "0.0.8"
-  },
-  "peerDependencies": {
-    "@supabase/supabase-js": ">=2.0.0",
-    "next": ">=13.4.0",
-    "@tanstack/react-query": ">=5.0.0",
-    "react": ">=18.0.0"
-  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
@@ -22,5 +19,41 @@
       "import": "./client.mjs",
       "require": "./client.js"
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "directory": "dist"
+  },
+  "scripts": {
+    "build": "tsdown && node ../../../../scripts/prepare-dist.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.lib.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@makerkit/data-loader-supabase-core": "0.0.10"
+  },
+  "devDependencies": {
+    "@supabase/postgrest-js": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": ">=2.74.0",
+    "@tanstack/react-query": ">=5.0.0",
+    "next": ">=13.4.0",
+    "react": ">=18.0.0"
   }
 }

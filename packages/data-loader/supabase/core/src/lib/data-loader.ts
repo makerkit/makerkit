@@ -1,11 +1,9 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 import { objectToCamel } from 'ts-case-convert';
-import { PostgrestFilterBuilder } from '@supabase/postgrest-js';
-import { GetResult } from '@supabase/postgrest-js/dist/module/select-query-parser';
-import { SupabaseClient } from '@supabase/supabase-js';
+
 import { DataLoader } from './data-loader-types';
 import { buildPostgrestQuery } from './utils';
-
-import Relationships = DataLoader.Relationships;
 
 /**
  * @name fetchDataFromSupabase
@@ -30,7 +28,12 @@ export async function fetchDataFromSupabase<
   >,
 ) {
   type Data = DataLoader.TransformData<
-    DataLoader.Data<DataLoader.ExtractDatabase<Client>, TableName, Query>,
+    DataLoader.Data<
+      DataLoader.ExtractDatabase<Client>,
+      TableName,
+      Query,
+      DataLoader.ExtractClientOptions<Client>
+    >,
     CamelCase,
     Single
   >;
@@ -56,21 +59,12 @@ export async function fetchDataFromSupabase<
   const selectString = buildPostgrestQuery(select);
   const tableRef = client.from(table as string);
 
-  let query: PostgrestFilterBuilder<
-    DataLoader.ExtractDatabase<Client>['public'],
-    DataLoader.Row<DataLoader.ExtractDatabase<Client>, TableName>,
-    | GetResult<
-        DataLoader.ExtractDatabase<Client>['public'],
-        DataLoader.Row<DataLoader.ExtractDatabase<Client>, TableName>,
-        TableName,
-        Relationships<DataLoader.ExtractDatabase<Client>, TableName>,
-        string
-      >
-    | DataLoader.GenericStringError[],
-    Relationships<DataLoader.ExtractDatabase<Client>, TableName>
-  > = tableRef.select(selectString, {
-    count: count ?? 'exact',
-  });
+  let query: DataLoader.QueryBuilder<Client, TableName> = tableRef.select(
+    selectString,
+    {
+      count: count ?? 'exact',
+    },
+  );
 
   if (where) {
     if (typeof where !== 'function') {
@@ -98,7 +92,8 @@ export async function fetchDataFromSupabase<
               const value = operatorMap[operator];
               if (value === undefined || value === null) continue;
 
-              query = query.eq(propertyName, value);
+              // `filter` is the untyped form of `eq`: the column comes from runtime keys
+              query = query.filter(propertyName, 'eq', value);
 
               break;
             }
@@ -107,7 +102,7 @@ export async function fetchDataFromSupabase<
               const value = operatorMap[operator];
               if (value === undefined || value === null) continue;
 
-              query = query.neq(propertyName, value);
+              query = query.filter(propertyName, 'neq', value);
 
               break;
             }

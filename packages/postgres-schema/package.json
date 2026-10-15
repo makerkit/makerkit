@@ -1,0 +1,70 @@
+{
+  "name": "@makerkit/postgres-schema",
+  "version": "0.0.0",
+  "description": "Lets coding agents read a Postgres database schema: tables, columns, foreign keys, indexes, functions and enums, from the live database or from declarative SQL schema files.",
+  "keywords": [
+    "ai-agents",
+    "claude-code",
+    "codex",
+    "database",
+    "mcp",
+    "postgres",
+    "schema",
+    "supabase"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/makerkit/makerkit",
+    "directory": "packages/postgres-schema"
+  },
+  "main": "./index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs",
+      "require": "./index.js"
+    },
+    "./node": {
+      "types": "./node.d.ts",
+      "import": "./node.mjs",
+      "require": "./node.js"
+    },
+    "./mcp": {
+      "types": "./mcp.d.ts",
+      "import": "./mcp.mjs",
+      "require": "./mcp.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "directory": "dist",
+    "linkDirectory": true
+  },
+  "scripts": {
+    "build": "tsdown && node ../../scripts/prepare-dist.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.lib.json && tsc --noEmit -p tsconfig.spec.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "postgres": "^3.4.9",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    }
+  }
+}

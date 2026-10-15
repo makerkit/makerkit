@@ -3,14 +3,14 @@ import { Client, Receiver } from '@upstash/qstash';
 type VerifyParams = {
   body: string;
   signature: string;
-}
+};
 
 type QstashQueueConfig = {
   url?: string;
   token?: string;
   currentSigningKey?: string;
   nextSigningKey?: string;
-}
+};
 
 type BaseQstashQueueParams = {
   delay?: number;
@@ -48,14 +48,14 @@ export class QStashTaskQueue<Body> {
     return this.config?.nextSigningKey || QSTASH_NEXT_SIGNING_KEY;
   }
 
-  constructor(
-    config?: Partial<QstashQueueConfig>,
-  ) {
+  constructor(config?: Partial<QstashQueueConfig>) {
     this.config = config || {};
     this.client = this.createClient();
   }
 
-  async create(params: { body: Body } & BaseQstashQueueParams) {
+  async create(
+    params: { body: Body } & BaseQstashQueueParams,
+  ): Promise<{ messageId: string; url: string; deduplicated?: boolean }> {
     const url = this.url;
 
     if (!url) {

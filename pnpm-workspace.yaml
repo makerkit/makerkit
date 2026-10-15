@@ -1,0 +1,39 @@
+packages:
+  - packages/*
+  - packages/data-loader/supabase/*
+
+allowBuilds:
+  esbuild: true
+  supabase: true
+
+catalog:
+  '@modelcontextprotocol/sdk': 1.32.1
+  '@remix-run/react': ^2.17.5
+  '@supabase/postgrest-js': ^2.117.3
+  '@supabase/supabase-js': ^2.117.3
+  '@tanstack/react-query': ^5.104.2
+  '@testing-library/dom': ^10.4.1
+  '@testing-library/react': ^16.3.3
+  '@types/node': ^24.0.0
+  '@types/react': ^19.3.0
+  '@types/react-dom': ^19.3.0
+  '@upstash/qstash': ^2.12.0
+  'jsdom': ^30.1.2
+  'next': ^16.4.0
+  'react': ^19.3.0
+  'react-dom': ^19.3.0
+  'ts-case-convert': ^2.3.1
+  'tsdown': 0.23.0
+  'typescript': ^6.0.3
+  'vite': ^8.3.4
+  'vitest': ^5.0.4
+  'zod': 4.6.5
+
+peerDependencyRules:
+  allowedVersions:
+    # Remix v2 and tsconfck declare TypeScript ^5 peers; they work with 6.
+    typescript: '6'
+
+overrides:
+  # One zod (and so one MCP SDK copy) across the repo; keep in sync with the catalog.
+  zod: 4.6.5
