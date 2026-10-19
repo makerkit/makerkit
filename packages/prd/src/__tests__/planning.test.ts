@@ -232,7 +232,9 @@ describe('decisions and open questions', () => {
     });
 
     expect(result).toEqual({ remaining_questions: 1, decision_id: 'DEC001' });
-    expect(read().openQuestions).toEqual([{ id: 'Q002', question: 'Do we need custom fields?' }]);
+    expect(read().openQuestions).toEqual([
+      { id: 'Q002', question: 'Do we need custom fields?' },
+    ]);
     expect(read().decisionLog[0]).toMatchObject({
       decision: 'Yes, a deal has one or more contacts',
       topic: 'open-question:Q001',
@@ -633,8 +635,16 @@ describe('edge cases and design guidance', () => {
       filename,
       section: 'edgeCases',
       value: [
-        { case: 'Client pays part of the invoice', status: 'open', storyIds: ['US002'] },
-        { case: 'Email bounces', expectedBehavior: 'Pause and notify', status: 'decided' },
+        {
+          case: 'Client pays part of the invoice',
+          status: 'open',
+          storyIds: ['US002'],
+        },
+        {
+          case: 'Email bounces',
+          expectedBehavior: 'Pause and notify',
+          status: 'decided',
+        },
       ],
     });
 
@@ -646,7 +656,12 @@ describe('edge cases and design guidance', () => {
         status: 'open',
         storyIds: ['US002'],
       },
-      { id: 'EC002', case: 'Email bounces', expectedBehavior: 'Pause and notify', status: 'decided' },
+      {
+        id: 'EC002',
+        case: 'Email bounces',
+        expectedBehavior: 'Pause and notify',
+        status: 'decided',
+      },
     ]);
   });
 
@@ -680,7 +695,11 @@ describe('edge cases and design guidance', () => {
       section: 'edgeCases',
       value: [
         { case: 'Partial payment', storyIds: ['US002'] },
-        { case: 'Server down', expectedBehavior: 'Retry later', status: 'decided' },
+        {
+          case: 'Server down',
+          expectedBehavior: 'Retry later',
+          status: 'decided',
+        },
       ],
     });
     await service.updatePrdSection({
@@ -699,7 +718,9 @@ describe('edge cases and design guidance', () => {
     const first = await service.getStory({ filename, storyId: 'US001' });
     const second = await service.getStory({ filename, storyId: 'US002' });
 
-    expect(first.edge_cases.map((edgeCase) => edgeCase.case)).toEqual(['Server down']);
+    expect(first.edge_cases.map((edgeCase) => edgeCase.case)).toEqual([
+      'Server down',
+    ]);
     expect(second.edge_cases.map((edgeCase) => edgeCase.case)).toEqual([
       'Partial payment',
       'Server down',
@@ -726,9 +747,9 @@ describe('edge cases and design guidance', () => {
     });
     await service.deleteUserStory({ filename, storyId: 'US002' });
 
-    expect(read().edgeCases.map(({ case: text, storyIds }) => [text, storyIds])).toEqual([
-      ['Shared', ['US001']],
-    ]);
+    expect(
+      read().edgeCases.map(({ case: text, storyIds }) => [text, storyIds]),
+    ).toEqual([['Shared', ['US001']]]);
   });
 
   it('keeps hand-edited files readable', async () => {
@@ -736,7 +757,12 @@ describe('edge cases and design guidance', () => {
 
     const prd = normalizePrd(
       {
-        edgeCases: [{ id: 'EC1', case: 'Fine' }, { case: 'No id' }, 'nonsense', null],
+        edgeCases: [
+          { id: 'EC1', case: 'Fine' },
+          { case: 'No id' },
+          'nonsense',
+          null,
+        ],
         designGuidance: ['Ok', 3],
       },
       '2026-10-15',
@@ -760,10 +786,18 @@ describe('mark_not_applicable', () => {
         notApplicable: true,
         reason: ' Internal tool ',
       }),
-    ).toEqual({ topic: 'rollout', not_applicable: true, reason: 'Internal tool' });
+    ).toEqual({
+      topic: 'rollout',
+      not_applicable: true,
+      reason: 'Internal tool',
+    });
     expect(read().notApplicable).toEqual({ rollout: 'Internal tool' });
 
-    await service.markNotApplicable({ filename, topic: 'rollout', notApplicable: false });
+    await service.markNotApplicable({
+      filename,
+      topic: 'rollout',
+      notApplicable: false,
+    });
 
     expect(read().notApplicable).toEqual({});
   });
@@ -772,7 +806,11 @@ describe('mark_not_applicable', () => {
     const { filename, service, read } = await seed();
     const seen = read().metadata.revision ?? 0;
 
-    await service.updatePrdSection({ filename, section: 'nonGoals', value: ['x'] });
+    await service.updatePrdSection({
+      filename,
+      section: 'nonGoals',
+      value: ['x'],
+    });
 
     await expect(
       service.markNotApplicable({
@@ -788,8 +826,10 @@ describe('mark_not_applicable', () => {
     const { normalizePrd } = await import('../prd.service');
 
     expect(
-      normalizePrd({ notApplicable: { rollout: 'x', nonsense: 'y', risks: 3 } }, '2026-10-15')
-        .notApplicable,
+      normalizePrd(
+        { notApplicable: { rollout: 'x', nonsense: 'y', risks: 3 } },
+        '2026-10-15',
+      ).notApplicable,
     ).toEqual({ rollout: 'x' });
   });
 
@@ -814,7 +854,12 @@ describe('mark_not_applicable', () => {
       section: 'technicalContracts',
       value: { permissions: ['Only the owner sees an invoice'] },
     });
-    await service.markNotApplicable({ filename, topic: 'rollout', notApplicable: true, reason: 'Internal' });
+    await service.markNotApplicable({
+      filename,
+      topic: 'rollout',
+      notApplicable: true,
+      reason: 'Internal',
+    });
 
     const context = await service.getStory({ filename, storyId: 'US001' });
 
@@ -864,7 +909,9 @@ describe('open questions', () => {
       ],
     });
 
-    expect(read().openQuestions.map(({ id, question }) => `${id} ${question}`)).toEqual([
+    expect(
+      read().openQuestions.map(({ id, question }) => `${id} ${question}`),
+    ).toEqual([
       'Q001 Can a deal have several contacts?',
       'Q003 Can a deal be reopened?',
       'Q004 A plain question still works',
@@ -910,7 +957,11 @@ describe('open questions', () => {
     const { filename, service, read } = await seed();
     const seen = read().metadata.revision ?? 0;
 
-    await service.updatePrdSection({ filename, section: 'nonGoals', value: ['x'] });
+    await service.updatePrdSection({
+      filename,
+      section: 'nonGoals',
+      value: ['x'],
+    });
 
     await expect(
       service.resolveOpenQuestion({
@@ -935,15 +986,19 @@ describe('open questions', () => {
 
     const context = await service.getStory({ filename, storyId: 'US001' });
 
-    expect(context.open_questions.map((q) => q.question)).toEqual(['Blocks it']);
+    expect(context.open_questions.map((q) => q.question)).toEqual([
+      'Blocks it',
+    ]);
   });
 
   it('reads plain-string questions from older files', async () => {
     const { normalizePrd } = await import('../prd.service');
 
     expect(
-      normalizePrd({ openQuestions: ['First', { id: 'Q007', question: 'Kept' }, '', 3] }, '2026-10-15')
-        .openQuestions,
+      normalizePrd(
+        { openQuestions: ['First', { id: 'Q007', question: 'Kept' }, '', 3] },
+        '2026-10-15',
+      ).openQuestions,
     ).toEqual([
       { id: 'Q008', question: 'First' },
       { id: 'Q007', question: 'Kept' },
@@ -978,7 +1033,11 @@ describe('decide_edge_case', () => {
     const { filename, service } = await seed();
 
     await expect(
-      service.decideEdgeCase({ filename, edgeCaseId: 'EC404', expectedBehavior: 'x' }),
+      service.decideEdgeCase({
+        filename,
+        edgeCaseId: 'EC404',
+        expectedBehavior: 'x',
+      }),
     ).rejects.toThrow(/EC404/);
   });
 });
@@ -997,7 +1056,11 @@ describe('update_story_status with expectedRevision', () => {
     });
     const seen = read().metadata.revision ?? 0;
 
-    await service.updatePrdSection({ filename, section: 'nonGoals', value: ['x'] });
+    await service.updatePrdSection({
+      filename,
+      section: 'nonGoals',
+      value: ['x'],
+    });
 
     await expect(
       service.updateStoryStatus({
@@ -1052,7 +1115,12 @@ describe('update_user_story with phase and revision', () => {
     expect(read().metadata.revision).toBe(seen + 1);
 
     await expect(
-      service.updateUserStory({ filename, storyId: 'US001', title: 'Stale', expectedRevision: seen }),
+      service.updateUserStory({
+        filename,
+        storyId: 'US001',
+        title: 'Stale',
+        expectedRevision: seen,
+      }),
     ).rejects.toThrow(/changed by someone else/);
     expect(read().userStories[0]?.title).toBe('Track deals');
   });

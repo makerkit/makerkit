@@ -52,6 +52,7 @@ describe('makerkit-prd-mcp', () => {
       ]),
     );
     expect(prompts.map((prompt) => prompt.name).sort()).toEqual([
+      'architect_prd',
       'implement_story',
       'review_story',
       'shape_prd',

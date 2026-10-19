@@ -14,22 +14,30 @@ export function normalizeEdgeCases(value: unknown): EdgeCase[] {
       return [];
     }
 
-    const { id, case: caseText, expectedBehavior, status, storyIds } =
-      entry as Record<string, unknown>;
+    const {
+      id,
+      case: caseText,
+      expectedBehavior,
+      status,
+      storyIds,
+    } = entry as Record<string, unknown>;
 
     if (typeof id !== 'string' || typeof caseText !== 'string' || !caseText) {
       return [];
     }
 
     const ids = Array.isArray(storyIds)
-      ? storyIds.filter((storyId): storyId is string => typeof storyId === 'string')
+      ? storyIds.filter(
+          (storyId): storyId is string => typeof storyId === 'string',
+        )
       : [];
 
     return [
       {
         id,
         case: caseText,
-        expectedBehavior: typeof expectedBehavior === 'string' ? expectedBehavior : '',
+        expectedBehavior:
+          typeof expectedBehavior === 'string' ? expectedBehavior : '',
         status: status === 'decided' ? 'decided' : 'open',
         ...(ids.length > 0 ? { storyIds: ids } : {}),
       },
@@ -40,7 +48,8 @@ export function normalizeEdgeCases(value: unknown): EdgeCase[] {
 /** The edge cases that apply to a story: those linked to it, and those linked to no story. */
 export function edgeCasesForStory(prd: StructuredPRD, storyId: string) {
   return prd.edgeCases.filter(
-    (edgeCase) => !edgeCase.storyIds?.length || edgeCase.storyIds.includes(storyId),
+    (edgeCase) =>
+      !edgeCase.storyIds?.length || edgeCase.storyIds.includes(storyId),
   );
 }
 

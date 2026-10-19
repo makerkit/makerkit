@@ -1,9 +1,13 @@
-import { attachmentsFolder, normalizeAttachments } from './attachment-paths';
 import { normalizeNotApplicable, setNotApplicable } from './applicability';
+import { attachmentsFolder, normalizeAttachments } from './attachment-paths';
+import {
+  addAttachment,
+  removeAttachment,
+  updateAttachment,
+} from './attachments';
 import { normalizeEdgeCases } from './edge-cases';
-import { normalizeOpenQuestions } from './open-questions';
-import { addAttachment, removeAttachment, updateAttachment } from './attachments';
 import { formatPrdMarkdown } from './markdown';
+import { normalizeOpenQuestions } from './open-questions';
 import { checkPlan } from './plan-check';
 import {
   addDecision,
@@ -342,9 +346,7 @@ export class PrdService {
       estimatedComplexity: complexity,
       dependencies: [],
       ...(input.testSeams?.length ? { testSeams: input.testSeams } : {}),
-      ...(input.designNotes?.length
-        ? { designNotes: input.designNotes }
-        : {}),
+      ...(input.designNotes?.length ? { designNotes: input.designNotes } : {}),
       ...(input.securityNotes?.length
         ? { securityNotes: input.securityNotes }
         : {}),
@@ -742,7 +744,9 @@ export class PrdService {
   }
 
   /** Changes an attachment's title, note or the stories that use it. */
-  updateAttachment(input: UpdateAttachmentInput): Promise<UpdateAttachmentOutput> {
+  updateAttachment(
+    input: UpdateAttachmentInput,
+  ): Promise<UpdateAttachmentOutput> {
     return this.mutate(
       input.filename,
       (prd) => updateAttachment(prd, input, this.today()),
@@ -909,7 +913,8 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
   const openQuestions = normalizeOpenQuestions(prd.openQuestions);
   // Ids given to questions from older files must never be handed out again
   const highestQuestion = openQuestions.reduce(
-    (max, question) => Math.max(max, Number(/^Q(\d+)$/.exec(question.id)?.[1] ?? 0)),
+    (max, question) =>
+      Math.max(max, Number(/^Q(\d+)$/.exec(question.id)?.[1] ?? 0)),
     0,
   );
 
@@ -986,7 +991,9 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
       : [],
     notApplicable: normalizeNotApplicable(prd.notApplicable),
     designGuidance: Array.isArray(prd.designGuidance)
-      ? prd.designGuidance.filter((item): item is string => typeof item === 'string')
+      ? prd.designGuidance.filter(
+          (item): item is string => typeof item === 'string',
+        )
       : [],
     decisionLog: prd.decisionLog ?? [],
     glossary: prd.glossary ?? [],
@@ -1002,7 +1009,8 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
       lastStoryNumber: prd.metadata?.lastStoryNumber,
       lastAttachmentNumber: prd.metadata?.lastAttachmentNumber,
       lastQuestionNumber:
-        Math.max(prd.metadata?.lastQuestionNumber ?? 0, highestQuestion) || undefined,
+        Math.max(prd.metadata?.lastQuestionNumber ?? 0, highestQuestion) ||
+        undefined,
       revision: prd.metadata?.revision,
     },
     progress: {

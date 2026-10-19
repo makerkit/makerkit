@@ -148,13 +148,19 @@ export function updateAttachment(
         story.attachmentIds = [...(story.attachmentIds ?? []), attachment.id];
         storiesUpdated.push(story.id);
       } else if (!wanted.has(story.id) && linked) {
-        story.attachmentIds = story.attachmentIds!.filter((id) => id !== attachment.id);
+        story.attachmentIds = story.attachmentIds!.filter(
+          (id) => id !== attachment.id,
+        );
         storiesUpdated.push(story.id);
       }
     }
   }
 
-  appendChangeLog(prd, `Updated attachment ${attachment.id} (${attachment.title})`, today);
+  appendChangeLog(
+    prd,
+    `Updated attachment ${attachment.id} (${attachment.title})`,
+    today,
+  );
 
   return { attachment_id: attachment.id, stories_updated: storiesUpdated };
 }

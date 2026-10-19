@@ -71,7 +71,14 @@ describe('checkPlan', () => {
       userStories: [story('US001')],
       nonGoals: ['x'],
       outOfScope: ['y'],
-      edgeCases: [{ id: 'EC001', case: 'c', expectedBehavior: 'b', status: 'decided' as const }],
+      edgeCases: [
+        {
+          id: 'EC001',
+          case: 'c',
+          expectedBehavior: 'b',
+          status: 'decided' as const,
+        },
+      ],
     };
 
     expect(ids(checkPlan(prd(base)))).not.toContain('required:permissions');
@@ -79,7 +86,10 @@ describe('checkPlan', () => {
     const withData = checkPlan(
       prd({
         ...base,
-        technicalContracts: { ...prd().technicalContracts, dataModels: ['Invoice: ...'] },
+        technicalContracts: {
+          ...prd().technicalContracts,
+          dataModels: ['Invoice: ...'],
+        },
       }),
     );
 
@@ -93,9 +103,18 @@ describe('checkPlan', () => {
         userStories: [story('US001')],
         nonGoals: ['x'],
         outOfScope: ['y'],
-        technicalContracts: { ...prd().technicalContracts, dataModels: ['Invoice'] },
-        edgeCases: [{ id: 'EC001', case: 'c', expectedBehavior: '', status: 'open' }],
-        notApplicable: { rollout: 'Internal tool', measurement: '', security: 'Local only' },
+        technicalContracts: {
+          ...prd().technicalContracts,
+          dataModels: ['Invoice'],
+        },
+        edgeCases: [
+          { id: 'EC001', case: 'c', expectedBehavior: '', status: 'open' },
+        ],
+        notApplicable: {
+          rollout: 'Internal tool',
+          measurement: '',
+          security: 'Local only',
+        },
       }),
     );
 
@@ -108,7 +127,11 @@ describe('checkPlan', () => {
 
   it('requires edge cases once there are stories', () => {
     const result = checkPlan(
-      prd({ userStories: [story('US001')], nonGoals: ['x'], outOfScope: ['y'] }),
+      prd({
+        userStories: [story('US001')],
+        nonGoals: ['x'],
+        outOfScope: ['y'],
+      }),
     );
 
     expect(result.ready_to_build).toBe(false);
@@ -123,8 +146,19 @@ describe('checkPlan', () => {
         outOfScope: ['y'],
         designGuidance: ['Use the kit components'],
         edgeCases: [
-          { id: 'EC001', case: 'Partial payment', expectedBehavior: '', status: 'open', storyIds: ['US002'] },
-          { id: 'EC002', case: 'Bounce', expectedBehavior: 'Pause', status: 'decided' },
+          {
+            id: 'EC001',
+            case: 'Partial payment',
+            expectedBehavior: '',
+            status: 'open',
+            storyIds: ['US002'],
+          },
+          {
+            id: 'EC002',
+            case: 'Bounce',
+            expectedBehavior: 'Pause',
+            status: 'decided',
+          },
         ],
       }),
     );
@@ -211,19 +245,30 @@ describe('checkPlan', () => {
         userStories: [story('US001'), story('US002', { status: 'completed' })],
         nonGoals: ['x'],
         outOfScope: ['y'],
-        edgeCases: [{ id: 'EC001', case: 'c', expectedBehavior: 'b', status: 'decided' }],
+        edgeCases: [
+          { id: 'EC001', case: 'c', expectedBehavior: 'b', status: 'decided' },
+        ],
         openQuestions: [
           { id: 'Q001', question: 'Blocks US001', storyIds: ['US001'] },
-          { id: 'Q002', question: 'Only blocks a completed story', storyIds: ['US002'] },
+          {
+            id: 'Q002',
+            question: 'Only blocks a completed story',
+            storyIds: ['US002'],
+          },
           { id: 'Q003', question: 'Blocks nothing' },
         ],
       }),
     );
 
-    const byId = Object.fromEntries(result.items.map((item) => [item.id, item]));
+    const byId = Object.fromEntries(
+      result.items.map((item) => [item.id, item]),
+    );
 
     expect(result.ready_to_build).toBe(false);
-    expect(byId['blocking-questions']).toMatchObject({ severity: 'required', storyIds: ['US001'] });
+    expect(byId['blocking-questions']).toMatchObject({
+      severity: 'required',
+      storyIds: ['US001'],
+    });
     expect(byId['open-questions']?.message).toMatch(/^2 open questions/);
   });
 });

@@ -69,7 +69,9 @@ export function formatPrdMarkdown(
       prd.openQuestions.map(
         (question) =>
           `${question.id}: ${question.question}` +
-          (question.storyIds?.length ? ` (blocks ${question.storyIds.join(', ')})` : '') +
+          (question.storyIds?.length
+            ? ` (blocks ${question.storyIds.join(', ')})`
+            : '') +
           (question.recommended ? ` Recommended: ${question.recommended}` : ''),
       ),
       'None',
@@ -80,9 +82,13 @@ export function formatPrdMarkdown(
     lines.push('', '## Edge Cases');
 
     for (const edgeCase of prd.edgeCases) {
-      const stories = edgeCase.storyIds?.length ? ` (${edgeCase.storyIds.join(', ')})` : '';
+      const stories = edgeCase.storyIds?.length
+        ? ` (${edgeCase.storyIds.join(', ')})`
+        : '';
       const behaviour =
-        edgeCase.status === 'decided' ? edgeCase.expectedBehavior : 'OPEN: ask, do not assume';
+        edgeCase.status === 'decided'
+          ? edgeCase.expectedBehavior
+          : 'OPEN: ask, do not assume';
 
       lines.push(`- ${edgeCase.case}${stories} -> ${behaviour}`);
     }
@@ -90,7 +96,9 @@ export function formatPrdMarkdown(
 
   const security = [
     ...prd.technicalContracts.permissions.map((item) => `Permission: ${item}`),
-    ...prd.technicalRequirements.complianceRequirements.map((item) => `Data: ${item}`),
+    ...prd.technicalRequirements.complianceRequirements.map(
+      (item) => `Data: ${item}`,
+    ),
     ...prd.securityConsiderations,
   ];
 
@@ -104,7 +112,9 @@ export function formatPrdMarkdown(
     lines.push(
       '',
       '## Not Applicable',
-      ...notApplicable.map(([topic, reason]) => `- ${topic}${reason ? `: ${reason}` : ''}`),
+      ...notApplicable.map(
+        ([topic, reason]) => `- ${topic}${reason ? `: ${reason}` : ''}`,
+      ),
     );
   }
 

@@ -71,7 +71,9 @@ export function checkPlan(prd: StructuredPRD) {
     });
   }
 
-  const openEdgeCases = prd.edgeCases.filter((edgeCase) => edgeCase.status === 'open');
+  const openEdgeCases = prd.edgeCases.filter(
+    (edgeCase) => edgeCase.status === 'open',
+  );
 
   if (openEdgeCases.length > 0) {
     items.push({
@@ -79,7 +81,11 @@ export function checkPlan(prd: StructuredPRD) {
       section: 'edgeCases',
       message: `${openEdgeCases.length} edge cases are still open; decide what should happen`,
       severity: 'required',
-      storyIds: [...new Set(openEdgeCases.flatMap((edgeCase) => edgeCase.storyIds ?? []))],
+      storyIds: [
+        ...new Set(
+          openEdgeCases.flatMap((edgeCase) => edgeCase.storyIds ?? []),
+        ),
+      ],
     });
   }
 
@@ -115,7 +121,7 @@ export function checkPlan(prd: StructuredPRD) {
       id: 'security',
       section: 'securityConsiderations',
       message:
-        'Add security considerations: think like an attacker (inputs, access to other users\' data, secrets, abuse, rate limits) and state the rules that prevent it',
+        "Add security considerations: think like an attacker (inputs, access to other users' data, secrets, abuse, rate limits) and state the rules that prevent it",
       severity: 'recommended',
     });
   }
@@ -159,7 +165,9 @@ export function checkPlan(prd: StructuredPRD) {
   // A question that blocks a story must be answered before that story is
   // built; the others improve the plan but can wait.
   const blocking = blockingQuestions(prd);
-  const others = prd.openQuestions.filter((question) => !blocking.includes(question));
+  const others = prd.openQuestions.filter(
+    (question) => !blocking.includes(question),
+  );
 
   if (blocking.length > 0) {
     items.push({
@@ -167,7 +175,9 @@ export function checkPlan(prd: StructuredPRD) {
       section: 'openQuestions',
       message: `${blocking.length} open questions block stories; answer them before those stories are built`,
       severity: 'required',
-      storyIds: [...new Set(blocking.flatMap((question) => question.storyIds ?? []))],
+      storyIds: [
+        ...new Set(blocking.flatMap((question) => question.storyIds ?? [])),
+      ],
     });
   }
 

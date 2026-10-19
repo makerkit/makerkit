@@ -24,10 +24,8 @@ export function normalizeOpenQuestions(value: unknown): OpenQuestion[] {
       continue;
     }
 
-    const { id, question, why, options, recommended, storyIds } = entry as Record<
-      string,
-      unknown
-    >;
+    const { id, question, why, options, recommended, storyIds } =
+      entry as Record<string, unknown>;
 
     if (typeof question !== 'string' || !question.trim()) {
       continue;
@@ -35,7 +33,10 @@ export function normalizeOpenQuestions(value: unknown): OpenQuestion[] {
 
     const strings = (list: unknown) =>
       Array.isArray(list)
-        ? list.filter((item): item is string => typeof item === 'string' && item.length > 0)
+        ? list.filter(
+            (item): item is string =>
+              typeof item === 'string' && item.length > 0,
+          )
         : [];
 
     questions.push({
@@ -43,7 +44,9 @@ export function normalizeOpenQuestions(value: unknown): OpenQuestion[] {
       question,
       ...(typeof why === 'string' && why ? { why } : {}),
       ...(strings(options).length ? { options: strings(options) } : {}),
-      ...(typeof recommended === 'string' && recommended ? { recommended } : {}),
+      ...(typeof recommended === 'string' && recommended
+        ? { recommended }
+        : {}),
       ...(strings(storyIds).length ? { storyIds: strings(storyIds) } : {}),
     });
   }
@@ -84,7 +87,9 @@ export function nextQuestionId(prd: StructuredPRD, extra: OpenQuestion[] = []) {
 /** Open questions that block a story that is not completed yet. */
 export function blockingQuestions(prd: StructuredPRD) {
   const unfinished = new Set(
-    prd.userStories.filter((story) => story.status !== 'completed').map((story) => story.id),
+    prd.userStories
+      .filter((story) => story.status !== 'completed')
+      .map((story) => story.id),
   );
 
   return prd.openQuestions.filter((question) =>

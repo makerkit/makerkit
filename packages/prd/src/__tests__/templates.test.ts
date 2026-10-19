@@ -94,7 +94,10 @@ describe('templates', () => {
     const prd = JSON.parse(files[filename]!) as StructuredPRD;
 
     expect(prd.nonGoals).toEqual(['Mobile app']);
-    expect(prd.openQuestions[0]).toEqual({ id: 'Q001', question: 'Who approves notes?' });
+    expect(prd.openQuestions[0]).toEqual({
+      id: 'Q001',
+      question: 'Who approves notes?',
+    });
     expect(prd.openQuestions.length).toBeGreaterThan(1);
   });
 

@@ -7,7 +7,7 @@ Structured product requirements documents (PRDs) stored as JSON files in `.prds/
 - **Completion gate**: a story can only be marked `completed` when the project's checks pass, so "done" means the code verifies.
 - **MCP tools**: the same operations exposed to Claude Code, Codex, OpenCode or any MCP client.
 - **Attachments**: files (mockups, screenshots, reference docs) live in a folder next to the PRD, `.prds/<prd name>/`, and links can be recorded too. Stories reference them by id, and `get_story` returns them with their paths.
-- **Prompts**: `shape_prd` interviews you round by round (numbered questions, each with a recommended answer and its reason) and writes every decision into the PRD; `implement_story` walks an agent through one story and its hand-off log. The same text is exported (`implementStoryPrompt`, `shapePrdPrompt`, `reviewStoryPrompt`) for UIs and agents without MCP prompt support.
+- **Prompts**: `shape_prd` interviews you round by round (numbered questions, each with a recommended answer and its reason) and writes every decision into the PRD; `architect_prd` designs the shape all stories share (using the project's `architect` skill when it has one) and records it as an attachment the story agents build against; `implement_story` walks an agent through one story and its hand-off log; `review_story` checks the result against the spec. The same text is exported (`shapePrdPrompt`, `architectPrdPrompt`, `implementStoryPrompt`, `reviewStoryPrompt`) for UIs and agents without MCP prompt support.
 
 ## Install
 

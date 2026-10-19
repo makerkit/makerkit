@@ -453,14 +453,20 @@ describe('update_attachment and revision checks', () => {
       title: 'Editor (v2)',
       path: 'mockups/editor.png',
     });
-    expect(read().userStories.map((story) => story.attachmentIds ?? [])).toEqual([[], ['ATT001']]);
+    expect(
+      read().userStories.map((story) => story.attachmentIds ?? []),
+    ).toEqual([[], ['ATT001']]);
   });
 
   it('rejects adding or removing based on an older revision', async () => {
     const { filename, service, read } = await seed();
     const seen = read().metadata.revision ?? 0;
 
-    await service.updatePrdSection({ filename, section: 'nonGoals', value: ['x'] });
+    await service.updatePrdSection({
+      filename,
+      section: 'nonGoals',
+      value: ['x'],
+    });
 
     await expect(
       service.addAttachment({

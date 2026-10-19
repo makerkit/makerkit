@@ -591,7 +591,8 @@ export const PrdSectionValueSchemas = {
       })
       .refine(
         (edgeCase) =>
-          edgeCase.status === 'open' || edgeCase.expectedBehavior.trim().length > 0,
+          edgeCase.status === 'open' ||
+          edgeCase.expectedBehavior.trim().length > 0,
         {
           message: 'A decided edge case needs its expectedBehavior',
           path: ['expectedBehavior'],
@@ -769,11 +770,14 @@ export const RemoveAttachmentOutputSchema = z.object({
   total_attachments: z.number().int().min(0),
 });
 
-
 export const ResolveOpenQuestionInputSchema = z
   .object({
     filename: FilenameSchema,
-    questionId: z.string().min(1).optional().describe('The question id, e.g. Q003'),
+    questionId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('The question id, e.g. Q003'),
     question: z
       .string()
       .min(1)
@@ -944,8 +948,12 @@ export type GetStoryOutput = z.infer<typeof GetStoryOutputSchema>;
 export type AddStoryLogInput = z.infer<typeof AddStoryLogInputSchema>;
 export type AddStoryLogOutput = z.infer<typeof AddStoryLogOutputSchema>;
 export type UpdatePrdSectionInput = z.infer<typeof UpdatePrdSectionInputSchema>;
-export type MarkNotApplicableInput = z.infer<typeof MarkNotApplicableInputSchema>;
-export type MarkNotApplicableOutput = z.infer<typeof MarkNotApplicableOutputSchema>;
+export type MarkNotApplicableInput = z.infer<
+  typeof MarkNotApplicableInputSchema
+>;
+export type MarkNotApplicableOutput = z.infer<
+  typeof MarkNotApplicableOutputSchema
+>;
 export type UpdatePrdSectionOutput = z.infer<
   typeof UpdatePrdSectionOutputSchema
 >;
@@ -954,7 +962,9 @@ export type AddDecisionOutput = z.infer<typeof AddDecisionOutputSchema>;
 export type AddAttachmentInput = z.infer<typeof AddAttachmentInputSchema>;
 export type AddAttachmentOutput = z.infer<typeof AddAttachmentOutputSchema>;
 export type UpdateAttachmentInput = z.infer<typeof UpdateAttachmentInputSchema>;
-export type UpdateAttachmentOutput = z.infer<typeof UpdateAttachmentOutputSchema>;
+export type UpdateAttachmentOutput = z.infer<
+  typeof UpdateAttachmentOutputSchema
+>;
 export type RemoveAttachmentInput = z.infer<typeof RemoveAttachmentInputSchema>;
 export type RemoveAttachmentOutput = z.infer<
   typeof RemoveAttachmentOutputSchema

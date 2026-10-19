@@ -3,6 +3,7 @@ import { z } from 'zod/v3';
 
 import type { PrdService } from '../prd.service';
 import {
+  architectPrdPrompt,
   implementStoryPrompt,
   reviewStoryPrompt,
   shapePrdPrompt,
@@ -634,7 +635,9 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     async (input) => {
       try {
         return buildStructuredResponse(
-          await service.updateAttachment(UpdateAttachmentInputSchema.parse(input)),
+          await service.updateAttachment(
+            UpdateAttachmentInputSchema.parse(input),
+          ),
         );
       } catch (error) {
         return buildErrorResponse('update_attachment', error);
@@ -776,6 +779,29 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
           content: {
             type: 'text',
             text: shapePrdPrompt(idea, filename, template),
+          },
+        },
+      ],
+    }),
+  );
+
+  server.registerPrompt(
+    'architect_prd',
+    {
+      title: 'Architect a PRD',
+      description:
+        'Design the shape all stories share (data model, modules, entry points, test seams) before any is built, and record it in the PRD as the contract to build against.',
+      argsSchema: {
+        filename: z.string().describe('PRD file name inside .prds'),
+      },
+    },
+    ({ filename }) => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: architectPrdPrompt(filename),
           },
         },
       ],

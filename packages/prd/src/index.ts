@@ -13,12 +13,10 @@ export {
   attachmentsFolder,
   resolveAttachments,
 } from './attachment-paths';
-export {
-  NOT_APPLICABLE_TOPICS,
-  isNotApplicable,
-} from './applicability';
+export { NOT_APPLICABLE_TOPICS, isNotApplicable } from './applicability';
 export { formatPrdMarkdown } from './markdown';
 export {
+  architectPrdPrompt,
   implementStoryPrompt,
   reviewStoryPrompt,
   shapePrdPrompt,

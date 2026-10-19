@@ -1,3 +1,4 @@
+import { nextQuestionId } from './open-questions';
 import { appendChangeLog, nextId } from './prd-operations';
 import {
   type AddDecisionInput,
@@ -16,7 +17,6 @@ import {
   type UpdatePrdSectionInput,
   type UpdatePrdSectionOutput,
 } from './schema';
-import { nextQuestionId } from './open-questions';
 import type { CustomPhase, OpenQuestion, StructuredPRD } from './types';
 
 /**
@@ -78,7 +78,9 @@ export function updatePrdSection(
       value as (typeof PrdSectionValueSchemas)['openQuestions']['_output'];
     const storyIds = new Set(prd.userStories.map((story) => story.id));
     const unknown = items
-      .flatMap((item) => (typeof item === 'string' ? [] : (item.storyIds ?? [])))
+      .flatMap((item) =>
+        typeof item === 'string' ? [] : (item.storyIds ?? []),
+      )
       .filter((id) => !storyIds.has(id));
 
     if (unknown.length > 0) {
@@ -91,7 +93,12 @@ export function updatePrdSection(
 
     for (const item of items) {
       const question = typeof item === 'string' ? { question: item } : item;
-      const { id, storyIds: linked, options, ...rest } = question as typeof question & {
+      const {
+        id,
+        storyIds: linked,
+        options,
+        ...rest
+      } = question as typeof question & {
         id?: string;
         storyIds?: string[];
         options?: string[];
@@ -245,14 +252,19 @@ export function resolveOpenQuestion(
         filename: input.filename,
         decision: input.answer,
         rationale:
-          `Answers ${question.id}: ${question.question}` + (question.why ? ` (${question.why})` : ''),
+          `Answers ${question.id}: ${question.question}` +
+          (question.why ? ` (${question.why})` : ''),
         topic: `open-question:${question.id}`,
         status: 'accepted',
       },
       today,
     ).decision_id;
   } else {
-    appendChangeLog(prd, `Resolved ${question.id}: ${question.question}`, today);
+    appendChangeLog(
+      prd,
+      `Resolved ${question.id}: ${question.question}`,
+      today,
+    );
   }
 
   return {
@@ -267,7 +279,9 @@ export function decideEdgeCase(
   input: DecideEdgeCaseInput,
   today: string,
 ): DecideEdgeCaseOutput {
-  const edgeCase = prd.edgeCases.find((candidate) => candidate.id === input.edgeCaseId);
+  const edgeCase = prd.edgeCases.find(
+    (candidate) => candidate.id === input.edgeCaseId,
+  );
 
   if (!edgeCase) {
     throw new Error(`Edge case "${input.edgeCaseId}" not found.`);
@@ -279,7 +293,9 @@ export function decideEdgeCase(
 
   return {
     edge_case_id: edgeCase.id,
-    open_edge_cases: prd.edgeCases.filter((candidate) => candidate.status === 'open').length,
+    open_edge_cases: prd.edgeCases.filter(
+      (candidate) => candidate.status === 'open',
+    ).length,
   };
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { registerPRDTools } from '../mcp';
 import { type PrdDeps, createPrdService } from '../prd.service';
+import { implementStoryPrompt, shapePrdPrompt } from '../prompts';
 import { createFakeMcpServer } from '../testing/fake-mcp-server';
 import type { StructuredPRD } from '../types';
 
@@ -373,5 +374,34 @@ describe('MCP registration', () => {
     expect(reviewText).toContain('get_story');
     expect(reviewText).toMatch(/Do not change the story status/);
     expect(reviewText).toContain('deviations');
+  });
+
+  it('registers architect_prd, which records the design where story agents read it', async () => {
+    const fake = createFakeMcpServer();
+    const { files, filename } = await seed();
+
+    registerPRDTools(fake.server, createPrdService(createDeps(files)));
+
+    const prompt = fake.prompts.find((entry) => entry.name === 'architect_prd');
+    const text = prompt!.handler({ filename }).messages[0]!.content.text;
+
+    expect(text).toContain('check_plan');
+    expect(text).toContain('architect skill');
+    expect(text).toContain(
+      `.prds/${filename.slice(0, -'.json'.length)}/architecture.md`,
+    );
+    expect(text).toContain('add_attachment');
+    expect(text).toContain('"technicalContracts"');
+    expect(text).toContain('add_decision with topic "architecture"');
+    expect(text).toContain('testSeams');
+    expect(text).toMatch(/Do not change story statuses/);
+    expect(text).toContain('key the work and test seams by story id');
+    expect(text).toContain('the deviations found in step 2');
+    expect(text).toContain('"openQuestions" with the stories they block');
+
+    expect(implementStoryPrompt(filename)).toMatch(
+      /"Architecture" attachment is the contract/,
+    );
+    expect(shapePrdPrompt('A CRM')).toContain('architect_prd');
   });
 });
