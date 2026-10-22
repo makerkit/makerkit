@@ -101,7 +101,7 @@ describe('templates', () => {
     expect(prd.openQuestions.length).toBeGreaterThan(1);
   });
 
-  it('is exposed through list_templates, create_prd and shape_prd', async () => {
+  it('is exposed through list_templates and create_prd, and shape_prd picks one', async () => {
     const fake = createFakeMcpServer();
     const files: Record<string, string> = {};
 
@@ -127,18 +127,19 @@ describe('templates', () => {
     });
     expect(invalid.isError).toBe(true);
 
-    const prompt = fake.prompts.find((entry) => entry.name === 'shape_prd')!;
-    const withTemplate = prompt.handler({
-      idea: 'Stripe sync',
-      template: 'integration',
-    }).messages[0]!.content.text;
-    const without = prompt.handler({ idea: 'Stripe sync' }).messages[0]!.content
-      .text;
+    expect(
+      (
+        listed.structuredContent as {
+          templates: { id: string; interview_focus: string[] }[];
+        }
+      ).templates.find((t) => t.id === 'integration')!.interview_focus,
+    ).toContain('What does the user see while the service is unavailable?');
 
-    expect(withTemplate).toContain('template "integration"');
-    expect(withTemplate).toContain(
-      'What does the user see while the service is unavailable?',
-    );
-    expect(without).toContain('list_templates');
+    const prompt = fake.prompts.find((entry) => entry.name === 'shape_prd')!;
+    const text = prompt.handler({ overview: 'Stripe sync' }).messages[0]!
+      .content.text;
+
+    expect(text).toContain('list_templates');
+    expect(text).toContain('interview_focus');
   });
 });

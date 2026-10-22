@@ -70,7 +70,6 @@ import {
   ListTemplatesInputSchema,
   ListTemplatesOutputSchema,
 } from '../schema';
-import { TEMPLATE_IDS } from '../templates';
 import {
   DESTRUCTIVE_TOOL,
   IDEMPOTENT_MUTATING_TOOL,
@@ -170,7 +169,8 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     'add_user_story',
     {
       title: 'Add a user story',
-      description: 'Append a user story with acceptance criteria to a PRD.',
+      description:
+        'Append a user story with acceptance criteria to a PRD. A story is one commit-sized change: one behaviour a test can check (not a single button, field or migration), leaving the build passing.',
       inputSchema: AddUserStoryInputSchema,
       outputSchema: AddUserStoryOutputSchema,
       annotations: MUTATING_TOOL,
@@ -758,27 +758,25 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
       description:
         'Interview the user round by round until the plan is clear, writing each decision into the PRD as it is made, then slice the work into stories and phases.',
       argsSchema: {
-        idea: z
+        overview: z
           .string()
           .optional()
-          .describe('What to build, in a sentence or two'),
+          .describe(
+            'What you want to build, in your own words: what it is, who it is for and what it should do',
+          ),
         filename: z
           .string()
           .optional()
           .describe('Existing PRD to keep shaping, inside .prds'),
-        template: z
-          .enum(TEMPLATE_IDS)
-          .optional()
-          .describe('Kind of work, see list_templates'),
       },
     },
-    ({ idea, filename, template }) => ({
+    ({ overview, filename }) => ({
       messages: [
         {
           role: 'user',
           content: {
             type: 'text',
-            text: shapePrdPrompt(idea, filename, template),
+            text: shapePrdPrompt(overview, filename),
           },
         },
       ],

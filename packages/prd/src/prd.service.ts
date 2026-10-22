@@ -576,6 +576,7 @@ export class PrdService {
         name: template.name,
         description: template.description,
         when_to_use: template.whenToUse,
+        interview_focus: template.interviewFocus,
       })),
     };
   }

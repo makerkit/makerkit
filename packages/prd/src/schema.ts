@@ -889,6 +889,7 @@ export const ListTemplatesOutputSchema = z.object({
       name: z.string(),
       description: z.string(),
       when_to_use: z.string(),
+      interview_focus: z.array(z.string()),
     }),
   ),
 });

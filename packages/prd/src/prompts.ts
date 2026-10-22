@@ -1,23 +1,16 @@
 import { attachmentProjectPath } from './attachment-paths';
-import { type TemplateId, getTemplate } from './templates';
 
 /**
  * The instructions behind the MCP prompts, exported so other tools (e.g. a
  * UI that shows what to ask the agent) give exactly the same text.
  */
 
-export function shapePrdPrompt(
-  idea?: string,
-  filename?: string,
-  templateId?: TemplateId,
-) {
-  const template = templateId ? getTemplate(templateId) : null;
-
+export function shapePrdPrompt(overview?: string, filename?: string) {
   const start = filename
     ? `Keep shaping the PRD "${filename}". Read it with get_prd first and continue from its open questions.`
-    : idea
-      ? `The idea: ${idea}`
-      : 'Start by asking what we are building, in a sentence or two.';
+    : overview
+      ? `What the user wants to build:\n\n${overview}\n\nTreat this as the starting point: do not ask again what it already answers.`
+      : 'Start by asking the user to describe what they want to build, in their own words: what it is, who it is for and what it should do.';
 
   return [
     `We are shaping a product requirements document before any code is written. ${start}`,
@@ -31,9 +24,7 @@ export function shapePrdPrompt(
     '- After each round, record what was decided before asking the next round.',
     '- Stop when no undecided questions remain, and confirm with the user before slicing the work.',
     '',
-    template
-      ? `This is a "${template.name}" (${template.description}) Create the PRD with template "${template.id}", and make sure the interview covers: ${template.interviewFocus.join(' ')}`
-      : 'If you are unsure what kind of work this is, call list_templates and suggest one.',
+    'Pick the template yourself instead of asking the user: call list_templates, choose the one whose when_to_use fits what they described, pass it to create_prd and cover its interview_focus questions in the rounds. If none fits, create the PRD without one.',
     '',
     'Order of the rounds, broad to detailed:',
     '1. What we are building and for whom (create_prd once this is clear, if there is no PRD yet).',
@@ -50,7 +41,9 @@ export function shapePrdPrompt(
     '12. If a part genuinely does not apply (no outside services; no rollout plan for an internal tool), mark it with mark_not_applicable and a reason instead of leaving it empty. Never mark security or edge cases as not applicable for a feature that takes input from people or stores their data.',
     '',
     'Then slice the work:',
-    '- Each story is a thin slice through every layer that a person can try once it is done, and that fits in one agent session. Put refactoring needed by later stories in its own earlier story.',
+    '- Each story is one commit: a small, self-contained change that leaves the build passing and is tested, and that a reviewer can read in a few minutes. Aim for one behaviour per story, usually a handful of files and one or two test seams. A story does not have to be something a person can try on its own; the phase is.',
+    '- Size stories small. Split one that has more than three or four acceptance criteria, covers several screens, endpoints or roles, or needs "and" in its title. More small stories are better than a few broad ones. Still slice vertically where you can (one field end to end, not every field in one layer), and put refactoring needed by later stories in its own earlier story.',
+    '- But not smaller than one behaviour. A story must change what the system does in a way a test can check through a seam: "a member can archive a project and it disappears from the list", not "add an archive button". A button, field, route, migration or config change on its own is a task, not a story: fold it into the story whose behaviour needs it. Merge stories whose acceptance criteria only describe what is on the screen, or that cannot be tested without the next story.',
     '- Create the phases first (create_custom_phase), in the order they should be built. Each phase should end with something a person can try (a page in the app, an API call, a command); say what in its description.',
     '- Add each story with add_user_story in one call: testSeams (the public entry points the tests will exercise), dependencies (stories that must be completed first) and phaseId. Add designNotes when the story has a screen or states the PRD design guidance does not settle, and securityNotes for each way this story in particular could be abused (whose ids it accepts, what input it trusts, what it costs to repeat) with the defence. Do not repeat the PRD-wide guidance or considerations there.',
     '- When the user shares mockups, screenshots or reference docs, save each file in the PRD folder (.prds/<prd file name without .json>/) and record it with add_attachment, linking the stories that use it. Record links to outside docs with a url instead.',

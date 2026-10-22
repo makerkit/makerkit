@@ -507,10 +507,10 @@ describe('MCP registration', () => {
     expect(invalid.isError).toBe(true);
 
     const prompt = fake.prompts.find((entry) => entry.name === 'shape_prd');
-    const text = prompt!.handler({ idea: 'A simple CRM' }).messages[0]!.content
-      .text;
+    const text = prompt!.handler({ overview: 'A simple CRM' }).messages[0]!
+      .content.text;
 
-    expect(text).toContain('The idea: A simple CRM');
+    expect(text).toContain('What the user wants to build:\n\nA simple CRM');
     for (const tool of [
       'create_prd',
       'update_prd_section',
