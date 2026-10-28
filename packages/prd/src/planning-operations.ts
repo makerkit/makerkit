@@ -17,7 +17,12 @@ import {
   type UpdatePrdSectionInput,
   type UpdatePrdSectionOutput,
 } from './schema';
-import type { CustomPhase, OpenQuestion, StructuredPRD } from './types';
+import type {
+  CustomPhase,
+  OpenQuestion,
+  StructuredPRD,
+  UserStory,
+} from './types';
 
 /**
  * Pure transforms for shaping a PRD after it was created: sections, decisions,
@@ -218,6 +223,64 @@ export function addDecision(
     superseded,
     total_decisions: prd.decisionLog.length,
   };
+}
+
+/**
+ * The decision topic for a story's accepted deviations. Deleting the story
+ * supersedes them with its other decisions.
+ */
+export function deviationTopic(storyId: string) {
+  return `story:${storyId}:deviation`;
+}
+
+/**
+ * Deviations the reviewer accepted become decisions, so the PRD describes
+ * what was built rather than only what was planned. Each must be one the
+ * story logged; one already recorded is not recorded twice.
+ */
+export function assertLoggedDeviations(story: UserStory, deviations: string[]) {
+  const logged = (story.log ?? []).flatMap((entry) => entry.deviations ?? []);
+
+  for (const deviation of deviations) {
+    if (!logged.includes(deviation)) {
+      throw new Error(
+        `${story.id} did not log the deviation "${deviation}". Copy it exactly from the story log.`,
+      );
+    }
+  }
+}
+
+export function recordDeviations(
+  prd: StructuredPRD,
+  story: UserStory,
+  deviations: string[],
+  today: string,
+) {
+  assertLoggedDeviations(story, deviations);
+
+  const topic = deviationTopic(story.id);
+  const recorded = new Set(
+    prd.decisionLog
+      .filter((entry) => entry.topic === topic && entry.status === 'accepted')
+      .map((entry) => entry.decision),
+  );
+
+  return [...new Set(deviations)]
+    .filter((deviation) => !recorded.has(deviation))
+    .map(
+      (deviation) =>
+        addDecision(
+          prd,
+          {
+            filename: '',
+            decision: deviation,
+            rationale: `Departed from the plan while building ${story.id} (${story.title}); accepted at review.`,
+            topic,
+            status: 'accepted',
+          },
+          today,
+        ).decision_id,
+    );
 }
 
 export function resolveOpenQuestion(

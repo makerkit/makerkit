@@ -223,6 +223,42 @@ describe('PrdService stories', () => {
     return { ...harness, story };
   }
 
+  it('adds a story with a proof per criterion, checked before it is saved', async () => {
+    const harness = createHarness();
+    await harness.service.create(BASE_INPUT);
+
+    await harness.service.addUserStory({
+      filename: 'notes-feature.json',
+      userType: 'member',
+      action: 'create a note quickly',
+      benefit: 'I remember things',
+      acceptanceCriteria: ['note saved', ''],
+      priority: 'P1',
+      proofs: [{ criterion: 'note saved', kind: 'unit', seam: 'saveNote' }],
+    });
+
+    const prd = JSON.parse(harness.files['notes-feature.json']!);
+    expect(prd.userStories[0].proofs).toEqual([
+      { criterion: 'note saved', kind: 'unit', seam: 'saveNote' },
+    ]);
+
+    await expect(
+      harness.service.addUserStory({
+        filename: 'notes-feature.json',
+        userType: 'member',
+        action: 'see notes',
+        benefit: 'I find them',
+        acceptanceCriteria: ['list shows notes'],
+        priority: 'P1',
+        proofs: [{ criterion: 'list shows notes', kind: 'manual' }],
+      }),
+    ).rejects.toThrow(/needs a reason/);
+
+    expect(
+      JSON.parse(harness.files['notes-feature.json']!).userStories,
+    ).toHaveLength(1);
+  });
+
   it('adds a story with derived id, title and complexity', async () => {
     const { story, files } = await withStory();
 
@@ -263,6 +299,7 @@ describe('PrdService stories', () => {
       status: 'in_progress',
       progress: 0,
       verification: null,
+      recorded_decisions: [],
     });
   });
 
@@ -326,6 +363,86 @@ describe('PrdService stories', () => {
     const prd = JSON.parse(files['notes-feature.json']!);
     expect(prd.userStories[0].completedAt).toBe('2026-09-06');
     expect(prd.userStories[0].verification.passed).toBe(true);
+  });
+
+  it('records accepted deviations as decisions when completing, once', async () => {
+    const { service, files } = await withStory();
+    const deviation = 'Saved to IndexedDB instead of localStorage, for size';
+
+    await service.addStoryLog({
+      filename: 'notes-feature.json',
+      storyId: 'US001',
+      whatsNew: ['Notes save'],
+      technicalNotes: [],
+      deviations: [deviation, 'Added a word count'],
+    });
+
+    const result = await service.updateStoryStatus({
+      filename: 'notes-feature.json',
+      storyId: 'US001',
+      status: 'completed',
+      recordDeviations: [deviation],
+    });
+
+    expect(result.recorded_decisions).toEqual(['DEC001']);
+
+    const prd = JSON.parse(files['notes-feature.json']!);
+    expect(prd.decisionLog).toEqual([
+      expect.objectContaining({
+        id: 'DEC001',
+        decision: deviation,
+        status: 'accepted',
+        topic: 'story:US001:deviation',
+      }),
+    ]);
+
+    // Reopened and approved again: the same deviation is not recorded twice
+    await service.updateStoryStatus({
+      filename: 'notes-feature.json',
+      storyId: 'US001',
+      status: 'not_started',
+    });
+    const again = await service.updateStoryStatus({
+      filename: 'notes-feature.json',
+      storyId: 'US001',
+      status: 'completed',
+      recordDeviations: [deviation],
+    });
+
+    expect(again.recorded_decisions).toEqual([]);
+  });
+
+  it('refuses deviations the story did not log, or outside completion, before the checks run', async () => {
+    let checks = 0;
+    const { service, files } = await withStory({
+      verifyCompletion: async () => {
+        checks += 1;
+        return PASSING;
+      },
+    });
+
+    await expect(
+      service.updateStoryStatus({
+        filename: 'notes-feature.json',
+        storyId: 'US001',
+        status: 'completed',
+        recordDeviations: ['Something else'],
+      }),
+    ).rejects.toThrow(/did not log the deviation/);
+
+    await expect(
+      service.updateStoryStatus({
+        filename: 'notes-feature.json',
+        storyId: 'US001',
+        status: 'in_progress',
+        recordDeviations: ['Something else'],
+      }),
+    ).rejects.toThrow(/only when a story is completed/);
+
+    expect(checks).toBe(0);
+    expect(JSON.parse(files['notes-feature.json']!).userStories[0].status).toBe(
+      'not_started',
+    );
   });
 
   it('does not overwrite stories added while verification was running', async () => {

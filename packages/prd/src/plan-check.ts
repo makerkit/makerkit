@@ -33,6 +33,18 @@ const CHECK_TOPICS: Record<string, NotApplicableTopic> = {
 /** Above this many stories, grouping them into phases is recommended. */
 const PHASE_THRESHOLD = 5;
 
+/**
+ * From this many stories, the problem and solution should be written out:
+ * stories say what to build, the prose says what is meant. Fewer words than
+ * MIN_INTENT_WORDS rarely carries that.
+ */
+const INTENT_STORY_THRESHOLD = 3;
+const MIN_INTENT_WORDS = 25;
+
+function wordCount(text: string) {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
 export function checkPlan(prd: StructuredPRD) {
   const items: PlanCheckItem[] = [];
   const stories = prd.userStories;
@@ -248,6 +260,87 @@ export function checkPlan(prd: StructuredPRD) {
       severity: 'recommended',
       storyIds: withoutSeams.map((story) => story.id),
     });
+  }
+
+  // A criterion without a proof is one an agent can call done on belief.
+  const unproven = stories.filter(
+    (story) =>
+      story.status !== 'completed' &&
+      story.acceptanceCriteria.some(
+        (criterion) =>
+          !story.proofs?.some((proof) => proof.criterion === criterion),
+      ),
+  );
+
+  if (unproven.length > 0) {
+    items.push({
+      id: 'unproven-criteria',
+      section: 'userStories',
+      message: `${unproven.length} stories have acceptance criteria with no proof; say how each is shown to work (proofs)`,
+      severity: 'recommended',
+      storyIds: unproven.map((story) => story.id),
+    });
+  }
+
+  // A hard test is a reason to prove it at a lower seam, not to skip one.
+  const unjustifiedE2e = stories.filter(
+    (story) =>
+      story.status !== 'completed' &&
+      story.proofs?.some((proof) => proof.kind === 'e2e' && !proof.reason),
+  );
+
+  if (unjustifiedE2e.length > 0) {
+    items.push({
+      id: 'e2e-proofs',
+      section: 'userStories',
+      message: `${unjustifiedE2e.length} stories rely on e2e proofs without saying why a lower seam (service, server action, route) will not do`,
+      severity: 'recommended',
+      storyIds: unjustifiedE2e.map((story) => story.id),
+    });
+  }
+
+  // When most of a story can only be checked by hand, the criteria are
+  // usually too vague to test, not truly untestable.
+  const mostlyManual = stories.filter((story) => {
+    const proofs = story.proofs ?? [];
+    const untested = proofs.filter(
+      (proof) => proof.kind === 'manual' || proof.kind === 'post-deploy',
+    );
+
+    return story.status !== 'completed' && untested.length * 2 > proofs.length;
+  });
+
+  if (mostlyManual.length > 0) {
+    items.push({
+      id: 'untested-proofs',
+      section: 'userStories',
+      message: `${mostlyManual.length} stories are mostly proven by hand; split the criteria so the testable parts get a test`,
+      severity: 'recommended',
+      storyIds: mostlyManual.map((story) => story.id),
+    });
+  }
+
+  // Structure is precise; the prose is what keeps it accurate to the intent.
+  if (stories.length >= INTENT_STORY_THRESHOLD) {
+    if (wordCount(prd.problemStatement.problem) < MIN_INTENT_WORDS) {
+      items.push({
+        id: 'thin-problem',
+        section: 'problemStatement',
+        message:
+          'Describe the problem in a few sentences: who has it, when, and what it costs them. The stories are checked against it',
+        severity: 'recommended',
+      });
+    }
+
+    if (wordCount(prd.solutionOverview.description) < MIN_INTENT_WORDS) {
+      items.push({
+        id: 'thin-solution',
+        section: 'solutionOverview',
+        message:
+          'Describe the finished feature in a few sentences: what a person can do and how it feels. The stories are checked against it',
+        severity: 'recommended',
+      });
+    }
   }
 
   const phased = new Set(

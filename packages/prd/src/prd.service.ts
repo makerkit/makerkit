@@ -12,9 +12,11 @@ import { checkPlan } from './plan-check';
 import {
   addDecision,
   addGlossaryTerm,
+  assertLoggedDeviations,
   deletePhase,
   reorderPhases,
   decideEdgeCase,
+  recordDeviations,
   resolveOpenQuestion,
   updatePhase,
   updatePrdSection,
@@ -36,6 +38,7 @@ import {
   updateStory,
   validateAttachmentIds,
   validateDependencies,
+  validateProofs,
 } from './prd-operations';
 import { implementStoryPrompt } from './prompts';
 import { assertSafeFileName, assertSafeRelativePath } from './safe-file-name';
@@ -333,19 +336,24 @@ export class PrdService {
     const complexity =
       input.estimatedComplexity ?? assessComplexity(input.acceptanceCriteria);
 
+    const acceptanceCriteria = input.acceptanceCriteria.filter(
+      (entry) => entry.trim().length > 0,
+    );
+
     prd.userStories.push({
       id: storyId,
       title,
       userStory: renderUserStory(input),
       businessValue: input.benefit,
-      acceptanceCriteria: input.acceptanceCriteria.filter(
-        (entry) => entry.trim().length > 0,
-      ),
+      acceptanceCriteria,
       status: 'not_started',
       priority: input.priority,
       estimatedComplexity: complexity,
       dependencies: [],
       ...(input.testSeams?.length ? { testSeams: input.testSeams } : {}),
+      ...(input.proofs?.length
+        ? { proofs: validateProofs(acceptanceCriteria, input.proofs) }
+        : {}),
       ...(input.designNotes?.length ? { designNotes: input.designNotes } : {}),
       ...(input.securityNotes?.length
         ? { securityNotes: input.securityNotes }
@@ -462,6 +470,19 @@ export class PrdService {
       input.status,
     );
 
+    if (input.recordDeviations?.length) {
+      if (input.status !== 'completed') {
+        throw new Error(
+          'Deviations are recorded only when a story is completed.',
+        );
+      }
+
+      assertLoggedDeviations(
+        findStory(current, input.storyId),
+        input.recordDeviations,
+      );
+    }
+
     let verification: UpdateStoryStatusOutput['verification'] = null;
 
     if (input.status === 'completed') {
@@ -503,6 +524,10 @@ export class PrdService {
 
     story.status = input.status;
 
+    const recordedDecisions = input.recordDeviations?.length
+      ? recordDeviations(prd, story, input.recordDeviations, this.today())
+      : [];
+
     if (input.notes) {
       story.notes = input.notes;
     }
@@ -521,6 +546,7 @@ export class PrdService {
       status: story.status,
       progress: prd.progress.overall,
       verification,
+      recorded_decisions: recordedDecisions,
     };
   }
 

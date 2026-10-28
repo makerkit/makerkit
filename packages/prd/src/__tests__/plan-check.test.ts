@@ -16,6 +16,10 @@ function story(id: string, overrides: Partial<UserStory> = {}): UserStory {
     estimatedComplexity: 'S',
     dependencies: [],
     testSeams: ['someAction'],
+    proofs: [
+      { criterion: 'First', kind: 'unit', seam: 'someAction' },
+      { criterion: 'Second', kind: 'integration', seam: 'someAction' },
+    ],
     ...overrides,
   };
 }
@@ -270,5 +274,117 @@ describe('checkPlan', () => {
       storyIds: ['US001'],
     });
     expect(byId['open-questions']?.message).toMatch(/^2 open questions/);
+  });
+
+  describe('proofs', () => {
+    it('recommends a proof for every criterion of an unfinished story', () => {
+      const result = checkPlan(
+        prd({
+          userStories: [
+            story('US001', {
+              proofs: [{ criterion: 'First', kind: 'unit' }],
+            }),
+            story('US002', { status: 'completed', proofs: [] }),
+          ],
+        }),
+      );
+
+      expect(
+        result.items.find((item) => item.id === 'unproven-criteria'),
+      ).toMatchObject({ severity: 'recommended', storyIds: ['US001'] });
+    });
+
+    it('asks an e2e proof to say why a lower seam will not do', () => {
+      const result = checkPlan(
+        prd({
+          userStories: [
+            story('US001', {
+              proofs: [
+                { criterion: 'First', kind: 'e2e' },
+                { criterion: 'Second', kind: 'unit' },
+              ],
+            }),
+            story('US002', {
+              proofs: [
+                {
+                  criterion: 'First',
+                  kind: 'e2e',
+                  reason: 'Behaviour lives in the drag-and-drop layer',
+                },
+                { criterion: 'Second', kind: 'unit' },
+              ],
+            }),
+          ],
+        }),
+      );
+
+      expect(
+        result.items.find((item) => item.id === 'e2e-proofs')?.storyIds,
+      ).toEqual(['US001']);
+    });
+
+    it('flags a story proven mostly by hand, but not one with a single manual check', () => {
+      const result = checkPlan(
+        prd({
+          userStories: [
+            story('US001', {
+              proofs: [
+                { criterion: 'First', kind: 'manual', reason: 'Copy tone' },
+                { criterion: 'Second', kind: 'post-deploy', reason: 'DNS' },
+              ],
+            }),
+            story('US002', {
+              proofs: [
+                { criterion: 'First', kind: 'manual', reason: 'Copy tone' },
+                { criterion: 'Second', kind: 'unit' },
+              ],
+            }),
+          ],
+        }),
+      );
+
+      expect(
+        result.items.find((item) => item.id === 'untested-proofs')?.storyIds,
+      ).toEqual(['US001']);
+    });
+  });
+
+  describe('intent', () => {
+    const words = (count: number) => Array(count).fill('word').join(' ');
+    const threeStories = [story('US001'), story('US002'), story('US003')];
+    const thinIds = (result: ReturnType<typeof checkPlan>) =>
+      ids(result).filter((id) => id.includes('thin-'));
+
+    it('asks for the problem and solution in prose once there are several stories', () => {
+      expect(thinIds(checkPlan(prd({ userStories: threeStories })))).toEqual([
+        'recommended:thin-problem',
+        'recommended:thin-solution',
+      ]);
+    });
+
+    it('is satisfied by a few sentences, and not asked of small plans', () => {
+      const base = normalizePrd({}, '2026-10-14');
+
+      expect(
+        thinIds(
+          checkPlan(
+            prd({
+              userStories: threeStories,
+              problemStatement: {
+                ...base.problemStatement,
+                problem: words(25),
+              },
+              solutionOverview: {
+                ...base.solutionOverview,
+                description: words(25),
+              },
+            }),
+          ),
+        ),
+      ).toEqual([]);
+      expect(
+        thinIds(checkPlan(prd({ userStories: [story('US001')] }))),
+      ).toEqual([]);
+    });
   });
 });

@@ -10,6 +10,7 @@ import type {
   UpdateUserStoryOutput,
 } from './schema';
 import type {
+  CriterionProof,
   StoryLogEntry,
   StoryStatus,
   StructuredPRD,
@@ -193,6 +194,23 @@ export function updateStory(
       (entry) => entry.trim().length > 0,
     );
     updated.push('acceptanceCriteria');
+
+    // A proof for a criterion that is gone proves nothing.
+    if (input.proofs === undefined && story.proofs?.length) {
+      const kept = story.proofs.filter((proof) =>
+        story.acceptanceCriteria.includes(proof.criterion),
+      );
+
+      if (kept.length !== story.proofs.length) {
+        story.proofs = kept;
+        updated.push('proofs');
+      }
+    }
+  }
+
+  if (input.proofs !== undefined) {
+    story.proofs = validateProofs(story.acceptanceCriteria, input.proofs);
+    updated.push('proofs');
   }
 
   if (input.priority !== undefined) {
@@ -238,7 +256,7 @@ export function updateStory(
     throw new Error(
       `No fields supplied to update on ${story.id}. Provide at least one of: ` +
         'title, userType, action, benefit, businessValue, acceptanceCriteria, ' +
-        'priority, estimatedComplexity, dependencies, notes, testSeams, designNotes, securityNotes, attachmentIds, phaseId.',
+        'priority, estimatedComplexity, dependencies, notes, testSeams, proofs, designNotes, securityNotes, attachmentIds, phaseId.',
     );
   }
 
@@ -271,6 +289,65 @@ export function validateAttachmentIds(prd: StructuredPRD, ids: string[]) {
   }
 
   return [...new Set(ids)];
+}
+
+/**
+ * Each proof must name one of the story's criteria, at most once, and a proof
+ * no test makes must say why — the reason is what a reviewer judges.
+ */
+export function validateProofs(
+  criteria: string[],
+  proofs: CriterionProof[],
+): CriterionProof[] {
+  const seen = new Set<string>();
+
+  return proofs.map((proof) => {
+    const criterion = criteria.find(
+      (candidate) => candidate.trim() === proof.criterion.trim(),
+    );
+
+    if (criterion === undefined) {
+      throw new Error(
+        `Proof names a criterion the story does not have: "${proof.criterion}". Copy the criterion exactly.`,
+      );
+    }
+
+    if (seen.has(criterion)) {
+      throw new Error(`Criterion "${criterion}" has more than one proof.`);
+    }
+
+    seen.add(criterion);
+
+    const reason = proof.reason?.trim();
+
+    if ((proof.kind === 'manual' || proof.kind === 'post-deploy') && !reason) {
+      throw new Error(
+        `A ${proof.kind} proof needs a reason: why no test can prove "${criterion}".`,
+      );
+    }
+
+    const rubric = (proof.rubric ?? [])
+      .map((point) => point.trim())
+      .filter(Boolean);
+
+    if (proof.kind === 'judge' && rubric.length === 0) {
+      throw new Error(
+        `A judge proof needs a rubric: what the reviewer scores "${criterion}" against.`,
+      );
+    }
+
+    const seam = proof.seam?.trim();
+    const fallback = proof.fallback?.trim();
+
+    return {
+      criterion,
+      kind: proof.kind,
+      ...(seam ? { seam } : {}),
+      ...(reason ? { reason } : {}),
+      ...(fallback ? { fallback } : {}),
+      ...(rubric.length > 0 ? { rubric } : {}),
+    };
+  });
 }
 
 /**

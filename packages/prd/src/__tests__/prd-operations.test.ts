@@ -421,3 +421,151 @@ describe('nextStoryId', () => {
     expect(nextStoryId(prd)).toBe('US004');
   });
 });
+
+describe('proofs', () => {
+  const criteria = ['Exports a CSV', 'The email arrives in the inbox'];
+
+  it('stores proofs against the story criteria', () => {
+    const prd = prdWith([{ acceptanceCriteria: criteria }]);
+
+    updateStory(
+      prd,
+      {
+        filename: 'f.json',
+        storyId: 'US001',
+        proofs: [
+          {
+            criterion: ' Exports a CSV ',
+            kind: 'integration',
+            seam: 'exportCsv',
+          },
+          {
+            criterion: 'The email arrives in the inbox',
+            kind: 'post-deploy',
+            reason: 'Deliverability depends on the real provider',
+            fallback: 'The mailer is called with the export link',
+          },
+        ],
+      },
+      TODAY,
+    );
+
+    expect(prd.userStories[0]!.proofs).toEqual([
+      { criterion: 'Exports a CSV', kind: 'integration', seam: 'exportCsv' },
+      {
+        criterion: 'The email arrives in the inbox',
+        kind: 'post-deploy',
+        reason: 'Deliverability depends on the real provider',
+        fallback: 'The mailer is called with the export link',
+      },
+    ]);
+  });
+
+  it('rejects a proof for a criterion the story does not have', () => {
+    const prd = prdWith([{ acceptanceCriteria: criteria }]);
+
+    expect(() =>
+      updateStory(
+        prd,
+        {
+          filename: 'f.json',
+          storyId: 'US001',
+          proofs: [{ criterion: 'Exports a PDF', kind: 'unit' }],
+        },
+        TODAY,
+      ),
+    ).toThrow(/does not have/);
+  });
+
+  it('rejects two proofs for one criterion', () => {
+    const prd = prdWith([{ acceptanceCriteria: criteria }]);
+
+    expect(() =>
+      updateStory(
+        prd,
+        {
+          filename: 'f.json',
+          storyId: 'US001',
+          proofs: [
+            { criterion: 'Exports a CSV', kind: 'unit' },
+            { criterion: 'Exports a CSV', kind: 'e2e' },
+          ],
+        },
+        TODAY,
+      ),
+    ).toThrow(/more than one proof/);
+  });
+
+  it('requires a reason for a proof no test makes', () => {
+    const prd = prdWith([{ acceptanceCriteria: criteria }]);
+
+    expect(() =>
+      updateStory(
+        prd,
+        {
+          filename: 'f.json',
+          storyId: 'US001',
+          proofs: [{ criterion: 'Exports a CSV', kind: 'manual', reason: ' ' }],
+        },
+        TODAY,
+      ),
+    ).toThrow(/needs a reason/);
+  });
+
+  it('drops proofs of criteria that were removed', () => {
+    const prd = prdWith([
+      {
+        acceptanceCriteria: criteria,
+        proofs: [
+          { criterion: 'Exports a CSV', kind: 'unit' },
+          {
+            criterion: 'The email arrives in the inbox',
+            kind: 'manual',
+            reason: 'Real inbox',
+          },
+        ],
+      },
+    ]);
+
+    const result = updateStory(
+      prd,
+      {
+        filename: 'f.json',
+        storyId: 'US001',
+        acceptanceCriteria: ['Exports a CSV'],
+      },
+      TODAY,
+    );
+
+    expect(result.updated_fields).toEqual(['acceptanceCriteria', 'proofs']);
+    expect(prd.userStories[0]!.proofs).toEqual([
+      { criterion: 'Exports a CSV', kind: 'unit' },
+    ]);
+  });
+
+  it('requires a rubric for a judge proof, and keeps it', () => {
+    const prd = prdWith([{ acceptanceCriteria: criteria }]);
+    const judge = (rubric: string[]) =>
+      updateStory(
+        prd,
+        {
+          filename: 'f.json',
+          storyId: 'US001',
+          proofs: [{ criterion: 'Exports a CSV', kind: 'judge', rubric }],
+        },
+        TODAY,
+      );
+
+    expect(() => judge([' '])).toThrow(/needs a rubric/);
+
+    judge(['Says what failed', ' Says what to do next ']);
+
+    expect(prd.userStories[0]!.proofs).toEqual([
+      {
+        criterion: 'Exports a CSV',
+        kind: 'judge',
+        rubric: ['Says what failed', 'Says what to do next'],
+      },
+    ]);
+  });
+});

@@ -199,6 +199,23 @@ export function formatPrdMarkdown(
   return lines.join('\n');
 }
 
+/** The criterion, followed by how it is proven when the story says. */
+function withProof(story: UserStory, criterion: string) {
+  const proof = story.proofs?.find((entry) => entry.criterion === criterion);
+
+  if (!proof) return criterion;
+
+  const detail = [
+    proof.seam && `\`${proof.seam}\``,
+    proof.reason,
+    proof.rubric?.length && `rubric: ${proof.rubric.join('; ')}`,
+  ]
+    .filter(Boolean)
+    .join(': ');
+
+  return `${criterion} *(proof: ${proof.kind}${detail ? ` — ${detail}` : ''})*`;
+}
+
 function formatStory(story: UserStory): string[] {
   const lines = [
     `#### ${story.id}: ${story.title} ${STATUS_LABELS[story.status]} [${story.estimatedComplexity}]`,
@@ -208,7 +225,9 @@ function formatStory(story: UserStory): string[] {
     `**Business Value:** ${story.businessValue}`,
     '',
     '**Acceptance Criteria:**',
-    ...bullets(story.acceptanceCriteria),
+    ...bullets(
+      story.acceptanceCriteria.map((criterion) => withProof(story, criterion)),
+    ),
   ];
 
   if (story.dependencies.length > 0) {

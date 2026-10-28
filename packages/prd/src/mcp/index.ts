@@ -191,7 +191,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Update story status',
       description:
-        'Update a user story status. Marking a story "completed" runs the project checks (typecheck, lint) first and is rejected if they fail.',
+        'Update a user story status. Marking a story "completed" runs the project checks (typecheck, lint) first and is rejected if they fail. When completing, recordDeviations records the accepted deviations from the story log as decisions.',
       inputSchema: UpdateStoryStatusInputSchema,
       outputSchema: UpdateStoryStatusOutputSchema,
       // Re-running "completed" re-executes the checks and rewrites the

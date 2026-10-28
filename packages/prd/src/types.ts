@@ -19,6 +19,40 @@ export type StoryPriority = 'P0' | 'P1' | 'P2' | 'P3';
 
 export type StoryComplexity = 'XS' | 'S' | 'M' | 'L' | 'XL';
 
+/**
+ * How a criterion is shown to work. `unit`, `integration` and `e2e` are tests
+ * the agent writes; `judge` is scored against a rubric by the agent reviewing
+ * the story, for judgment that can be written down (tone, clarity, layout);
+ * `manual` and `post-deploy` are checks a person does, for truths that live
+ * outside the test environment (a real third party, production-only
+ * conditions, judgment no rubric captures).
+ */
+export type ProofKind =
+  | 'unit'
+  | 'integration'
+  | 'e2e'
+  | 'judge'
+  | 'manual'
+  | 'post-deploy';
+
+/** The proof for one of a story's acceptance criteria, decided while planning. */
+export interface CriterionProof {
+  /** The acceptance criterion this proves, exactly as written in the story. */
+  criterion: string;
+  kind: ProofKind;
+  /** The entry point or test file the test exercises. */
+  seam?: string;
+  /**
+   * Why a test cannot prove it (manual, post-deploy) or why a lower seam will
+   * not do (e2e).
+   */
+  reason?: string;
+  /** For manual and post-deploy: the strongest automated check still made. */
+  fallback?: string;
+  /** For judge: what the reviewer scores against, one line per point. */
+  rubric?: string[];
+}
+
 /** Recorded when a story is marked completed and the project checks passed. */
 export interface StoryVerification {
   verifiedAt: string;
@@ -63,6 +97,8 @@ export interface UserStory {
    * action, a service function) whose behaviour the tests exercise.
    */
   testSeams?: string[];
+  /** How each acceptance criterion is proven; see `CriterionProof`. */
+  proofs?: CriterionProof[];
   /** Ids of the PRD's attachments this story uses, e.g. a mockup. */
   attachmentIds?: string[];
   /**

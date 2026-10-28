@@ -21,6 +21,50 @@ export const StoryPrioritySchema = z.enum(['P0', 'P1', 'P2', 'P3']);
 
 export const StoryComplexitySchema = z.enum(['XS', 'S', 'M', 'L', 'XL']);
 
+export const ProofKindSchema = z.enum([
+  'unit',
+  'integration',
+  'e2e',
+  'judge',
+  'manual',
+  'post-deploy',
+]);
+
+export const CriterionProofSchema = z.object({
+  criterion: z
+    .string()
+    .min(1)
+    .describe('The acceptance criterion this proves, exactly as written'),
+  kind: ProofKindSchema.describe(
+    'unit/integration/e2e: a test at the lowest seam that can assert it. judge: the reviewing agent scores it against a rubric, for judgment that can be written down (tone, clarity, layout). manual/post-deploy only when the truth lives outside the test environment (a real third party, production-only conditions, human judgment) — never because a test is hard',
+  ),
+  seam: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The entry point or test file the test exercises'),
+  reason: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'Required for manual and post-deploy: why no test can prove it. For e2e: why a lower seam will not do',
+    ),
+  fallback: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'For manual and post-deploy: the strongest automated check still made',
+    ),
+  rubric: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Required for judge: the points the reviewer scores against, each one checkable, e.g. "Says what failed and what to do next"',
+    ),
+});
+
 export const PrdSummarySchema = z.object({
   filename: z.string(),
   title: z.string(),
@@ -106,6 +150,12 @@ export const AddUserStoryInputSchema = z.object({
     .describe(
       'Public entry points the tests exercise, e.g. a route or server action',
     ),
+  proofs: z
+    .array(CriterionProofSchema)
+    .optional()
+    .describe(
+      'How each acceptance criterion is proven, one per criterion. Replaces the list',
+    ),
   dependencies: z
     .array(z.string().min(1))
     .optional()
@@ -145,6 +195,12 @@ export const UpdateStoryStatusInputSchema = z.object({
   storyId: z.string().min(1),
   status: StoryStatusSchema,
   notes: z.string().optional(),
+  recordDeviations: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Only when completing: deviations from the story log, copied exactly, to record as accepted decisions so the PRD says what was built',
+    ),
   expectedRevision: z
     .number()
     .int()
@@ -168,6 +224,8 @@ export const UpdateStoryStatusOutputSchema = z.object({
   progress: z.number().int().min(0).max(100),
   /** Present only when the story was marked completed and checks ran. */
   verification: StoryVerificationSchema.nullable(),
+  /** Ids of the decisions recorded from the story's deviations. */
+  recorded_decisions: z.array(z.string()),
 });
 
 export const UpdateUserStoryInputSchema = z.object({
@@ -189,6 +247,12 @@ export const UpdateUserStoryInputSchema = z.object({
     .optional()
     .describe(
       'Public entry points the tests exercise, e.g. a route or server action',
+    ),
+  proofs: z
+    .array(CriterionProofSchema)
+    .optional()
+    .describe(
+      'How each acceptance criterion is proven, one per criterion. Replaces the list',
     ),
   attachmentIds: z
     .array(z.string().min(1))
