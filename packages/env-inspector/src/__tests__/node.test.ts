@@ -82,7 +82,7 @@ describe('a single-app Next.js project with no model', () => {
 
     await service.update({ key: 'B', value: '2' });
 
-    expect(await readFile(join(root, '.env.local'), 'utf8')).toBe('A=1\n\nB=2');
+    expect(await readFile(join(root, '.env.local'), 'utf8')).toBe('A=1\nB=2\n');
     expect(await service.getVariable('B')).toBe('2');
     expect(await service.rawRead('.env.production')).toEqual({
       content: '',

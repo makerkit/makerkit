@@ -87,13 +87,11 @@ export function setEnvValue(content: string, key: string, value: string) {
   }
 
   if (matches.length === 0) {
+    // after the last line, keeping a trailing newline where there was one
     const output = [...lines];
+    const at = output.at(-1) === '' ? output.length - 1 : output.length;
 
-    if (output[output.length - 1] !== '') {
-      output.push('');
-    }
-
-    output.push(`${key}=${written}`);
+    output.splice(at, 0, `${key}=${written}`);
 
     return output.join('\n');
   }
@@ -150,15 +148,14 @@ function hasUnescaped(text: string, quote: string) {
 }
 
 function unquote(rawValue: string) {
-  let value = rawValue;
+  const trimmed = rawValue.trim();
+  const quoted = /^(["'])([\s\S]*)\1(?:\s+#.*)?$/.exec(trimmed);
 
-  if (
-    value.length >= 2 &&
-    ((value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'")))
-  ) {
-    value = value.slice(1, -1);
-  }
+  // as dotenv (Vite's loadEnv) reads it: a quoted value whole, an unquoted
+  // one up to the first #
+  const value = quoted
+    ? quoted[2]!
+    : trimmed.replace(/#.*$/, '');
 
   return value
     .replace(/\\"/g, '"')

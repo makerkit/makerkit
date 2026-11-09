@@ -19,6 +19,8 @@ Works with single-app projects and monorepos. Apps are not detected automaticall
 | `env_raw_read` | Returns the content of one `.env` file. |
 | `env_raw_write` | Replaces the content of one `.env` file. |
 
+`registerEnvInspectorTools(server, service, { prefix, omit })`: `prefix` is prepended to every name (`'kit_'` gives `kit_env_read`); `omit` leaves tools out by unprefixed name, e.g. `['env_raw_write']` when agents must change env files one key at a time.
+
 `mode` accepts the configured modes (default `development`). `file` accepts only the configured `.env` file names. `app` selects the app when more than one is configured (default: the first).
 
 ## Precedence

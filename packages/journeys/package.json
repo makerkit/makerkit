@@ -1,0 +1,55 @@
+{
+  "name": "@makerkit/journeys",
+  "version": "0.0.1",
+  "description": "The journey engine behind Makerkit kits' setup commands and MCP tools: steps with checks, confirm levels, resume commands, locks and background processes, one definition for the CLI and MCP, and kit_doctor over every journey. Results are @makerkit/handoff.",
+  "keywords": [
+    "ai-agents",
+    "claude-code",
+    "cli",
+    "makerkit",
+    "mcp"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/makerkit/makerkit",
+    "directory": "packages/journeys"
+  },
+  "main": "./index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs",
+      "require": "./index.js"
+    },
+    "./mcp": {
+      "types": "./mcp.d.ts",
+      "import": "./mcp.mjs",
+      "require": "./mcp.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "directory": "dist",
+    "linkDirectory": true
+  },
+  "scripts": {
+    "build": "tsdown && node ../../scripts/prepare-dist.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.lib.json && tsc --noEmit -p tsconfig.spec.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@makerkit/handoff": "workspace:^",
+    "@makerkit/kit-tools": "workspace:^",
+    "zod": "^3.25.1 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -90,6 +90,23 @@ describe('registerEnvInspectorTools', () => {
     ]);
   });
 
+  it('leaves out the tools named in omit', () => {
+    const { deps } = createMemoryDeps({}, { apps: WEB_APP });
+    const fake = createFakeMcpServer();
+
+    registerEnvInspectorTools(fake.server, createEnvInspectorService(deps), {
+      prefix: 'kit_',
+      omit: ['env_raw_write'],
+    });
+
+    expect(fake.tools.map((tool) => tool.name)).toEqual([
+      'kit_env_schema',
+      'kit_env_read',
+      'kit_env_update',
+      'kit_env_raw_read',
+    ]);
+  });
+
   it('mentions redaction in the descriptions only when values are hidden', () => {
     const hidden = setup().fake.tool('env_read').config.description;
     const shown = setup({}, { revealValues: true }).fake.tool('env_read').config

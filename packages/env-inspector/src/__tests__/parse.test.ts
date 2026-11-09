@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseEnvFile, setEnvValue } from '../parse';
+import { parseEnvContent, parseEnvFile, setEnvValue } from '../parse';
 
 describe('parseEnvFile', () => {
   it('reads keys, values and 1-based lines, skipping comments and blanks', () => {
@@ -57,5 +57,20 @@ describe('setEnvValue', () => {
 
   it('quotes values that contain a newline', () => {
     expect(setEnvValue('', 'K', 'a\nb')).toBe('K="a\nb"');
+  });
+});
+
+describe('parseEnvContent: comments after a value', () => {
+  it('reads values as dotenv does: quoted whole, unquoted up to #', () => {
+    const { entries } = parseEnvContent(
+      'A=sk_test_x # mine\nB="v # w" # c\nC = spaced\nD=a#b\n',
+    );
+
+    expect(entries.map((e) => [e.key, e.value])).toEqual([
+      ['A', 'sk_test_x'],
+      ['B', 'v # w'],
+      ['C', 'spaced'],
+      ['D', 'a'],
+    ]);
   });
 });

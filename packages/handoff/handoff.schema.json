@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["done", "failed", "needs-human", "refused"]
+    },
+    "journey": {
+      "type": "string"
+    },
+    "account": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        }
+      },
+      "required": ["provider", "id", "name"]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": ["done", "todo", "waiting", "running", "skipped", "failed"]
+          },
+          "actor": {
+            "default": "agent",
+            "type": "string",
+            "enum": ["agent", "human"]
+          },
+          "message": {
+            "type": "string"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fix": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "confirm": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "title", "state"]
+      }
+    },
+    "nextSteps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "type": "string",
+            "enum": ["agent", "human"]
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "resumeWith": {
+            "type": "string"
+          }
+        },
+        "required": ["actor", "instructions"]
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": ["status", "steps", "nextSteps", "summary"]
+}
