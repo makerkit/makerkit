@@ -31,7 +31,7 @@ export const envJourney = defineJourney<Deps>({
   - **Schemas:** the tool input and output schemas.
 - `@makerkit/journeys/mcp` (pass your own `McpServer`; the package doesn't depend on the MCP SDK):
   - `registerJourneyTools` registers `kit_<id>` per journey plus `kit_journeys`. A journey can't take a data tool's name: `@makerkit/kit-tools`' names, plus the kit's own in `reserved` (`['kit_env_']` covers a prefix).
-  - `registerKitDoctorTool` registers `kit_doctor`, reusing a result for 5 seconds. `checks` says what the kit's environment checks cover, for the tool's description.
+  - `registerKitDoctorTool` registers `kit_doctor`; calls that arrive while a run is going share it, and a finished result is never reused (a check right after a change sees it). `checks` says what the kit's environment checks cover, for the tool's description.
 
 ## Confirm levels
 

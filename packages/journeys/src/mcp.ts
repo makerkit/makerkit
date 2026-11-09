@@ -1,4 +1,4 @@
-import { HandoffResultSchema } from '@makerkit/handoff';
+import { HandoffResultSchema, type HandoffResult } from '@makerkit/handoff';
 import { toToolResult } from '@makerkit/handoff/mcp';
 import { KIT_TOOL_SCHEMAS } from '@makerkit/kit-tools';
 import {
@@ -26,18 +26,23 @@ export type JourneyToolsDeps<D> = {
   reserved?: string[];
 };
 
+// the data tools' names (kit-tools) and this package's own: a name, or a
+// prefix ending in `_`
+const RESERVED = [
+  ...Object.keys(KIT_TOOL_SCHEMAS),
+  'kit_doctor',
+  'kit_journeys',
+];
+
+const takes = (name: string, other: string) =>
+  other.endsWith('_') ? name.startsWith(other) : name === other;
+
 /**
  * One tool per journey (`kit_<id>`: check, plan or apply, one step or all)
  * and `kit_journeys`, the list the Console draws its cards from. Nobody can
  * answer a prompt over MCP: `step` confirmations come in `confirm`, and
  * `terminal` steps hand the owner the command to run themselves.
  */
-const RESERVED = new Set([
-  ...Object.keys(KIT_TOOL_SCHEMAS),
-  'kit_doctor',
-  'kit_journeys',
-]);
-
 export function registerJourneyTools<D>(
   server: ToolServer,
   deps: JourneyToolsDeps<D>,
@@ -47,11 +52,11 @@ export function registerJourneyTools<D>(
 
     // a journey can't take a data tool's name (those may be allowed
     // without asking, a journey writes)
-    const taken = (deps.reserved ?? []).some((other) =>
-      other.endsWith('_') ? name.startsWith(other) : name === other,
-    );
-
-    if (RESERVED.has(name) || taken) {
+    if (
+      [...RESERVED, ...(deps.reserved ?? [])].some((other) =>
+        takes(name, other),
+      )
+    ) {
       throw new Error(
         `Journey "${journey.id}" would be ${name}, a name the kit's data tools use.`,
       );
@@ -86,14 +91,17 @@ export function registerJourneyTools<D>(
           onProgress: progressOf(extra),
         };
         const { mode, step, confirm } = input;
-        const result =
-          mode === 'stop'
-            ? await stopStep(journey, step, ctx)
-            : await runJourney(
-                journey,
-                { mode, step, confirm, surface: 'mcp' },
-                ctx,
-              );
+        let result: HandoffResult;
+
+        if (mode === 'stop') {
+          result = await stopStep(journey, step, ctx);
+        } else {
+          result = await runJourney(
+            journey,
+            { mode, step, confirm, surface: 'mcp' },
+            ctx,
+          );
+        }
 
         return toToolResult({
           result,
@@ -173,18 +181,12 @@ function progressOf(extra?: Extra) {
   };
 }
 
-// the Console polls: a few seconds of reuse (counted from when the result
-// came back) keeps that off the outside services the checks call
-const CACHE_MS = 5_000;
-
 export function registerKitDoctorTool(
   server: ToolServer,
   service: DoctorService,
   {
-    now = Date.now,
     checks = 'this computer, the install and the settings',
   }: {
-    now?: () => number;
     // what the kit's own environment checks cover, for the description
     checks?: string;
   } = {},
@@ -195,10 +197,9 @@ export function registerKitDoctorTool(
       .then((value) =>
         toToolResult({ result: value, secrets: service.secrets() }),
       );
-  const cache = new Map<
-    JourneyScope,
-    { at: number | null; result: ReturnType<typeof answer> }
-  >();
+  // a run in flight is shared by the calls that arrive meanwhile; a finished
+  // one never is, so a check right after a change sees it
+  const running = new Map<JourneyScope, ReturnType<typeof answer>>();
 
   server.registerTool(
     'kit_doctor',
@@ -210,25 +211,17 @@ export function registerKitDoctorTool(
     },
     async (raw: unknown) => {
       const { scope } = DoctorInputSchema.parse(raw ?? {});
-      const hit = cache.get(scope);
+      const shared = running.get(scope);
 
-      // a run in flight is shared; a finished one is reused for CACHE_MS
-      if (hit && (hit.at === null || now() - hit.at < CACHE_MS)) {
-        return hit.result;
+      if (shared) {
+        return shared;
       }
 
-      const entry: { at: number | null; result: ReturnType<typeof answer> } = {
-        at: null,
-        result: answer(scope),
-      };
+      const result = answer(scope).finally(() => running.delete(scope));
 
-      cache.set(scope, entry);
-      entry.result.then(
-        () => (entry.at = now()),
-        () => cache.delete(scope),
-      );
+      running.set(scope, result);
 
-      return entry.result;
+      return result;
     },
   );
 }

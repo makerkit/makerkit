@@ -193,10 +193,9 @@ describe('kit_doctor over MCP and runDoctorCli', () => {
     );
   });
 
-  it('reuses a result for 5 seconds, shares one in flight, then checks again', async () => {
+  it('shares a run in flight, and checks again once it is done', async () => {
     const fake = createFakeMcpServer();
     let runs = 0;
-    let clock = 0;
     const counted = doctor([
       defineJourney<null>({
         id: 'count',
@@ -213,18 +212,42 @@ describe('kit_doctor over MCP and runDoctorCli', () => {
       }),
     ]);
 
-    registerKitDoctorTool(fake.server, counted, { now: () => clock });
+    registerKitDoctorTool(fake.server, counted);
 
     await Promise.all([
       fake.call('kit_doctor', {}),
       fake.call('kit_doctor', {}),
     ]);
-    clock = 4_000;
-    await fake.call('kit_doctor', {});
     expect(runs).toBe(1);
 
-    clock = 6_000;
+    // a check right after a change sees it
     await fake.call('kit_doctor', {});
     expect(runs).toBe(2);
+  });
+
+  it('shows a step run only on request without counting it', async () => {
+    const service = doctor([
+      defineJourney<null>({
+        id: 'forward',
+        title: 'Forwarding',
+        command: 'kit:forward',
+        steps: [
+          defineStep({
+            id: 'listen',
+            title: 'Forward events',
+            onlyWhenNamed: true,
+            check: async () => todo('not running'),
+            apply: async () => undefined,
+          }),
+        ],
+      }),
+    ]);
+    const result = await run(service);
+
+    expect(result.steps.find((s) => s.id === 'forward.listen')).toMatchObject({
+      state: 'skipped',
+      message: 'not running',
+    });
+    expect(result.summary).toBe('Everything is ready (1 checks).');
   });
 });

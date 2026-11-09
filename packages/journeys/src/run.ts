@@ -33,15 +33,23 @@ export async function runJourney<D>(
     );
   }
 
-  const result =
-    input.mode === 'apply'
-      ? await withLock(journey, only, ctx, () => apply(journey, input, ctx))
-      : await report(journey, input, ctx);
+  let result: HandoffResult;
+
+  if (input.mode === 'apply') {
+    result = await withLock(journey, only, ctx, () =>
+      apply(journey, input, ctx),
+    );
+  } else {
+    result = await report(journey, input, ctx);
+  }
+
   const withAccount = await addAccount(journey, result, ctx.deps);
 
-  return journey.finalize
-    ? journey.finalize(withAccount, { input, deps: ctx.deps })
-    : withAccount;
+  if (!journey.finalize) {
+    return withAccount;
+  }
+
+  return journey.finalize(withAccount, { input, deps: ctx.deps });
 }
 
 // the outside account the journey acts on, on every result
@@ -96,17 +104,23 @@ export async function stopStep<D>(
 
     const after = await checkSafely(step, ctx);
 
-    return after.state === 'done'
-      ? outcome(
-          'failed',
-          {
-            ...after,
-            state: 'failed',
-            message: `stopped but still running: ${after.message ?? ''}`,
-          },
-          `${journey.title}: "${step.title}" is still running.`,
-        )
-      : outcome('done', after, `${journey.title}: "${step.title}" stopped.`);
+    if (after.state !== 'done') {
+      return outcome(
+        'done',
+        after,
+        `${journey.title}: "${step.title}" stopped.`,
+      );
+    }
+
+    return outcome(
+      'failed',
+      {
+        ...after,
+        state: 'failed',
+        message: `stopped but still running: ${after.message ?? ''}`,
+      },
+      `${journey.title}: "${step.title}" is still running.`,
+    );
   });
 
   return addAccount(journey, result, ctx.deps);
@@ -143,12 +157,19 @@ async function withLock<D>(
 }
 
 // failed beats a person's turn, which beats done
-export function statusOf(steps: StepResult[], nextSteps: NextStep[]) {
-  return steps.some((s) => s.state === 'failed')
-    ? 'failed'
-    : nextSteps.length > 0
-      ? 'needs-human'
-      : 'done';
+export function statusOf(
+  steps: StepResult[],
+  nextSteps: NextStep[],
+): HandoffResult['status'] {
+  if (steps.some((s) => s.state === 'failed')) {
+    return 'failed';
+  }
+
+  if (nextSteps.length > 0) {
+    return 'needs-human';
+  }
+
+  return 'done';
 }
 
 export function handoff(
@@ -195,21 +216,37 @@ async function report<D>(
   }
 
   const found = await Promise.all(selected.map((s) => checks.get(s.id)!));
-  const steps = selected.map((step, index) => resultOf(step, found[index]!));
-  const nextSteps = selected.flatMap((step, index) =>
-    found[index]!.state === 'waiting'
-      ? [humanNext(journey, step, found[index]!, input)]
-      : [],
-  );
-  const status = statusOf(steps, nextSteps);
+  const steps: StepResult[] = [];
+  const nextSteps: NextStep[] = [];
 
-  const pending = steps.filter((s) => s.state !== 'done').length;
+  for (const [index, step] of selected.entries()) {
+    const check = found[index]!;
+
+    // run only on request and not asked for: shown (a client can see
+    // whether it ran) but nobody's step
+    if (step.onlyWhenNamed && input.step !== step.id) {
+      steps.push(
+        resultOf(step, check, check.state === 'done' ? 'done' : 'skipped'),
+      );
+      continue;
+    }
+
+    steps.push(resultOf(step, check));
+
+    if (check.state === 'waiting') {
+      nextSteps.push(humanNext(journey, step, check, input));
+    }
+  }
+
+  const status = statusOf(steps, nextSteps);
+  const counted = steps.filter((s) => s.state !== 'skipped');
+  const pending = counted.filter((s) => s.state !== 'done').length;
   const summary =
     pending === 0
       ? `${journey.title}: everything is done.`
       : input.mode === 'plan'
-        ? `${journey.title}: ${pending} of ${steps.length} steps to do, nothing changed yet. ${applyHint(journey, input)}`
-        : `${journey.title}: ${pending} of ${steps.length} steps need attention (below).`;
+        ? `${journey.title}: ${pending} of ${counted.length} steps to do, nothing changed yet. ${applyHint(journey, input)}`
+        : `${journey.title}: ${pending} of ${counted.length} steps need attention (below).`;
 
   return handoff(journey, status, summary, steps, nextSteps);
 }
@@ -319,6 +356,15 @@ async function apply<D>(
 
     if (go.answer === 'skip') {
       steps.push(resultOf(step, { ...found, state: 'todo' }, 'skipped'));
+
+      // the step asked for was the whole run
+      if (input.step === step.id) {
+        return result(
+          'done',
+          `${journey.title}: "${step.title}" was skipped; nothing changed.`,
+        );
+      }
+
       continue;
     }
 
@@ -468,10 +514,13 @@ async function confirmStep<D>(
   };
 }
 
+// a check sees every step; one step asked for, only that one
 function selectedSteps<D>(journey: Journey<D>, only?: string) {
-  return only
-    ? journey.steps.filter((step) => step.id === only)
-    : journey.steps.filter((step) => !step.onlyWhenNamed);
+  if (only) {
+    return journey.steps.filter((step) => step.id === only);
+  }
+
+  return journey.steps;
 }
 
 async function checkSafely<D>(
@@ -490,20 +539,40 @@ function resultOf<D>(
   found: CheckResult,
   state?: StepResult['state'],
 ): StepResult {
-  return {
+  const shown = state ?? found.state;
+  const result: StepResult = {
     id: step.id,
     title: step.title,
     // waiting is always on a person, whoever the step's usual actor is
-    actor: (state ?? found.state) === 'waiting' ? 'human' : step.actor,
-    state: state ?? found.state,
-    ...(found.message && { message: found.message }),
-    ...(found.changes?.length && { changes: found.changes }),
-    ...(found.fix && { fix: found.fix }),
-    ...(found.url && { url: found.url }),
-    ...(step.confirm.level !== 'none' &&
-      step.confirm.level !== 'run' &&
-      found.state !== 'done' && { confirm: questionOf(step) }),
+    actor: shown === 'waiting' ? 'human' : step.actor,
+    state: shown,
   };
+
+  if (found.message) {
+    result.message = found.message;
+  }
+
+  if (found.changes?.length) {
+    result.changes = found.changes;
+  }
+
+  if (found.fix) {
+    result.fix = found.fix;
+  }
+
+  if (found.url) {
+    result.url = found.url;
+  }
+
+  // a step-level or terminal yes still to give: the question
+  const asks =
+    step.confirm.level === 'step' || step.confirm.level === 'terminal';
+
+  if (asks && found.state !== 'done') {
+    result.confirm = questionOf(step);
+  }
+
+  return result;
 }
 
 function humanNext<D>(
@@ -538,11 +607,14 @@ function resumeOf<D>(
   }
 
   if (input.surface === 'mcp') {
-    const args = {
+    const args: { mode: 'apply'; step: string; confirm?: string[] } = {
       mode: 'apply',
       step: step.id,
-      ...(confirmed && { confirm: [step.id] }),
     };
+
+    if (confirmed) {
+      args.confirm = [step.id];
+    }
 
     return `${toolNameOf(journey)} ${JSON.stringify(args)}`;
   }

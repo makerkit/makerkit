@@ -358,6 +358,23 @@ describe('runJourney: confirm levels', () => {
     ]);
   });
 
+  it('a skip of the step asked for ends the run there, saying so', async () => {
+    const { result, state } = await run(
+      journeyOf(stepOf('a'), stepOf('b'), stepOf('c')),
+      { step: 'b' },
+      { answers: ['skip'], state: { applied: [], done: new Set(['a']) } },
+    );
+
+    expect(state.applied).toEqual([]);
+    expect(result.status).toBe('done');
+    expect(result.steps.map((s) => [s.id, s.state])).toEqual([
+      ['b', 'skipped'],
+    ]);
+    expect(result.summary).toBe(
+      'Set up: "Step b" was skipped; nothing changed.',
+    );
+  });
+
   it('writes MCP resume calls for MCP runs', async () => {
     const { result } = await run(
       journeyOf(stepOf('seed', { level: 'step' })),
@@ -520,9 +537,18 @@ describe('runJourney: steps that wait, named steps, the last word', () => {
 
     expect(full.state.applied).toEqual(['a']);
     expect(full.result.steps.map((s) => s.id)).toEqual(['a']);
-    expect(
-      (await run(journey, { mode: 'check' })).result.steps.map((s) => s.id),
-    ).toEqual(['a']);
+
+    // a check shows it (a client can see whether it ran) without asking
+    // for it: not done is `skipped`, never a step for anyone
+    const checked = (await run(journey, { mode: 'check' })).result;
+
+    expect(checked.steps.map((s) => [s.id, s.state, s.message])).toEqual([
+      ['a', 'todo', 'a not yet'],
+      ['proof', 'skipped', 'proof not yet'],
+    ]);
+    expect(checked.summary).toBe(
+      'Set up: 1 of 1 steps need attention (below).',
+    );
 
     const named = await run(
       journey,

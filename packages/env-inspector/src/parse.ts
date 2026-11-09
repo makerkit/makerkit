@@ -22,7 +22,8 @@ const ASSIGNMENT = /^([^=]+)=(.*)$/;
  * until a line ending with that quote (e.g. a PEM key in double quotes).
  */
 export function parseEnvContent(content: string) {
-  const lines = content.split('\n');
+  // \r\n too: a .env saved on Windows reads the same
+  const lines = content.split(/\r?\n/);
   const entries: EnvEntry[] = [];
 
   for (let index = 0; index < lines.length; index++) {
@@ -79,6 +80,8 @@ export function parseEnvFile(content: string, source: string) {
  */
 export function setEnvValue(content: string, key: string, value: string) {
   const { lines, entries } = parseEnvContent(content);
+  // written back with the file's own line endings
+  const eol = content.includes('\r\n') ? '\r\n' : '\n';
   const written = value.includes('\n') ? `"${value}"` : value;
   const matches = entries.filter((entry) => entry.key === key);
 
@@ -93,7 +96,7 @@ export function setEnvValue(content: string, key: string, value: string) {
 
     output.splice(at, 0, `${key}=${written}`);
 
-    return output.join('\n');
+    return output.join(eol);
   }
 
   const output: string[] = [];
@@ -107,7 +110,7 @@ export function setEnvValue(content: string, key: string, value: string) {
 
   output.push(...lines.slice(cursor));
 
-  return output.join('\n');
+  return output.join(eol);
 }
 
 function findMultilineEnd(lines: string[], index: number, rawValue: string) {
@@ -153,9 +156,7 @@ function unquote(rawValue: string) {
 
   // as dotenv (Vite's loadEnv) reads it: a quoted value whole, an unquoted
   // one up to the first #
-  const value = quoted
-    ? quoted[2]!
-    : trimmed.replace(/#.*$/, '');
+  const value = quoted ? quoted[2]! : trimmed.replace(/#.*$/, '');
 
   return value
     .replace(/\\"/g, '"')

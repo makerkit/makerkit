@@ -30,7 +30,8 @@ const SCOPES: Record<JourneyScope, JourneyScope[]> = {
  * what's left, who does it and how. CLI and MCP get the same result.
  */
 export function createDoctorService<D, E>(deps: DoctorDeps<D, E>) {
-  const { id, secrets } = deps.environment;
+  const { environment } = deps;
+  const { id, secrets } = environment;
 
   // the tool is kit_doctor and its owner steps resume with it
   if (id !== 'doctor') {
@@ -54,7 +55,6 @@ export function createDoctorService<D, E>(deps: DoctorDeps<D, E>) {
       scope?: JourneyScope;
       surface: Surface;
     }) {
-      const environment = deps.environment;
       const entries = [
         {
           journey: environment as Journey<unknown>,
@@ -73,24 +73,18 @@ export function createDoctorService<D, E>(deps: DoctorDeps<D, E>) {
         SCOPES[scope].includes(journey.scope ?? 'local'),
       );
 
-      const results = await Promise.all(
-        entries.map(async ({ journey, deps: load, resume }) =>
-          runJourney(
+      const parts = await Promise.all(
+        entries.map(async ({ journey, deps: load, resume, prefix }) => ({
+          prefix,
+          result: await runJourney(
             journey,
             { mode: 'check', surface, resume },
             { deps: await load(), locks: NO_LOCKS, runConfirmed: false },
           ),
-        ),
+        })),
       );
 
-      return merge(
-        results.map((result, index) => ({
-          prefix: entries[index]!.prefix,
-          result,
-        })),
-        scope,
-        environment,
-      );
+      return merge(parts, scope, environment);
     },
     secrets() {
       return deps.journeys.flatMap(
@@ -111,29 +105,41 @@ function merge(
     result.steps.map((step) => ({ ...step, id: `${prefix}${step.id}` })),
   );
   const nextSteps = parts.flatMap(({ result }) => result.nextSteps);
-  const open = steps.filter((step) => step.state !== 'done');
+  // skipped: run only on request (forwarding, a proof), nobody's to do
+  const counted = steps.filter((step) => step.state !== 'skipped');
+  const open = counted.filter((step) => step.state !== 'done');
   const forOwner = open.filter((step) => step.actor === 'human').length;
   const forAgent = open.length - forOwner;
-  const checked = `${steps.length} checks${scope === 'local' ? '' : `, ${scope}`}`;
+  const checked = `${counted.length} checks${scope === 'local' ? '' : `, ${scope}`}`;
+  const status = statusOf(steps, nextSteps);
 
-  return handoff(
-    doctor,
-    statusOf(steps, nextSteps),
-    open.length === 0
-      ? `Everything is ready (${checked}).`
-      : [
-          `${open.length} of ${checked} need attention.`,
-          forOwner > 0 &&
-            `${forOwner} ${forOwner === 1 ? 'needs' : 'need'} you (below).`,
-          forAgent > 0 &&
-            `${forAgent} your agent can fix: ask it to "fix what ${doctor.command} found".`,
-          'Nothing was changed.',
-        ]
-          .filter(Boolean)
-          .join(' '),
-    steps,
-    nextSteps,
-  );
+  if (open.length === 0) {
+    return handoff(
+      doctor,
+      status,
+      `Everything is ready (${checked}).`,
+      steps,
+      nextSteps,
+    );
+  }
+
+  const summary = [`${open.length} of ${checked} need attention.`];
+
+  if (forOwner > 0) {
+    summary.push(
+      `${forOwner} ${forOwner === 1 ? 'needs' : 'need'} you (below).`,
+    );
+  }
+
+  if (forAgent > 0) {
+    summary.push(
+      `${forAgent} your agent can fix: ask it to "fix what ${doctor.command} found".`,
+    );
+  }
+
+  summary.push('Nothing was changed.');
+
+  return handoff(doctor, status, summary.join(' '), steps, nextSteps);
 }
 
 function rerunCommand(
@@ -156,13 +162,21 @@ export async function runDoctorCli(
   const scopes = (['launch', 'prod'] as const).filter((s) =>
     argv.includes(`--${s}`),
   );
-  const result =
-    scopes.length > 1
-      ? refused(
-          undefined,
-          "Pick one of --launch or --prod: they don't go together.",
-        )
-      : await service.run({ scope: scopes[0] ?? 'local', surface: 'cli' });
+  if (scopes.length > 1) {
+    const result = refused(
+      undefined,
+      "Pick one of --launch or --prod: they don't go together.",
+    );
+
+    finish({ result, json, secrets: [], stdout });
+
+    return;
+  }
+
+  const result = await service.run({
+    scope: scopes[0] ?? 'local',
+    surface: 'cli',
+  });
 
   finish({ result, json, secrets: service.secrets(), stdout });
 }

@@ -74,3 +74,25 @@ describe('parseEnvContent: comments after a value', () => {
     ]);
   });
 });
+
+describe('Windows line endings (CRLF)', () => {
+  const crlf = 'DATABASE_URL=postgres://me@neon/db\r\nSECRET="a b"\r\n';
+
+  it('reads every key and value', () => {
+    expect(
+      parseEnvContent(crlf).entries.map((entry) => [entry.key, entry.value]),
+    ).toEqual([
+      ['DATABASE_URL', 'postgres://me@neon/db'],
+      ['SECRET', 'a b'],
+    ]);
+  });
+
+  it('writes a key keeping the file in CRLF, values untouched', () => {
+    expect(setEnvValue(crlf, 'NEW', 'x')).toBe(
+      'DATABASE_URL=postgres://me@neon/db\r\nSECRET="a b"\r\nNEW=x\r\n',
+    );
+    expect(setEnvValue(crlf, 'DATABASE_URL', 'local')).toBe(
+      'DATABASE_URL=local\r\nSECRET="a b"\r\n',
+    );
+  });
+});
