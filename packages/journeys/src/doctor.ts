@@ -11,7 +11,11 @@ export type DoctorDeps<D, E> = {
   environment: Journey<E>;
   // fresh for each run (its reads are shared by that run's checks)
   environmentDeps: () => Promise<E>;
+  // journeys with a tool of their own: their owner steps resume with it
   journeys: Journey<D>[];
+  // check-only journeys only the doctor runs (launch placeholders): their
+  // owner steps resume by running the doctor again
+  checks?: Journey<D>[];
   depsFor: (journey: Journey<D>) => D;
 };
 
@@ -55,22 +59,25 @@ export function createDoctorService<D, E>(deps: DoctorDeps<D, E>) {
       scope?: JourneyScope;
       surface: Surface;
     }) {
+      // the doctor's own checks resume by running it again
+      const rerun = () => rerunCommand(environment, scope, surface);
+      const journey = (item: Journey<D>, resume?: () => string) => ({
+        journey: item as Journey<unknown>,
+        deps: async () => deps.depsFor(item) as unknown,
+        prefix: `${item.id}.`,
+        resume,
+      });
       const entries = [
         {
           journey: environment as Journey<unknown>,
           deps: () => deps.environmentDeps(),
           prefix: '',
-          // its owner steps resume by running the doctor again
-          resume: () => rerunCommand(environment, scope, surface),
+          resume: rerun,
         },
-        ...deps.journeys.map((journey) => ({
-          journey: journey as Journey<unknown>,
-          deps: async () => deps.depsFor(journey) as unknown,
-          prefix: `${journey.id}.`,
-          resume: undefined,
-        })),
-      ].filter(({ journey }) =>
-        SCOPES[scope].includes(journey.scope ?? 'local'),
+        ...deps.journeys.map((item) => journey(item)),
+        ...(deps.checks ?? []).map((item) => journey(item, rerun)),
+      ].filter((entry) =>
+        SCOPES[scope].includes(entry.journey.scope ?? 'local'),
       );
 
       const parts = await Promise.all(
@@ -110,7 +117,7 @@ function merge(
   const open = counted.filter((step) => step.state !== 'done');
   const forOwner = open.filter((step) => step.actor === 'human').length;
   const forAgent = open.length - forOwner;
-  const checked = `${counted.length} checks${scope === 'local' ? '' : `, ${scope}`}`;
+  const checked = `${counted.length} checks${scope === 'local' ? '' : ` (${scope})`}`;
   const status = statusOf(steps, nextSteps);
 
   if (open.length === 0) {

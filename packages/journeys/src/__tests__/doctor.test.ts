@@ -109,6 +109,41 @@ describe('createDoctorService', () => {
     );
   });
 
+  it('resumes the checks only the doctor runs with the doctor, in that scope', async () => {
+    const launch = defineJourney<null>({
+      id: 'launch',
+      title: 'Ready to launch',
+      command: 'kit:doctor',
+      scope: 'launch',
+      steps: [
+        defineStep({
+          id: 'logo',
+          title: 'Your logo',
+          actor: 'human',
+          check: async () => waiting('Still the example logo'),
+        }),
+      ],
+    });
+    const service = createDoctorService({
+      environment: environment(),
+      environmentDeps: async () => null,
+      journeys: [],
+      checks: [launch],
+      depsFor: () => null,
+    });
+
+    expect((await run(service)).steps.map((s) => s.id)).toEqual(['node']);
+    expect((await run(service, 'launch')).summary).toContain(
+      '1 of 2 checks (launch) need attention.',
+    );
+    expect((await run(service, 'launch')).nextSteps[0]?.resumeWith).toBe(
+      'pnpm kit:doctor --launch',
+    );
+    expect((await run(service, 'launch', 'mcp')).nextSteps[0]?.resumeWith).toBe(
+      'kit_doctor {"scope":"launch"}',
+    );
+  });
+
   it('runs launch journeys only with launch, and prod without the local checks', async () => {
     const service = doctor([billing('launch')]);
 
