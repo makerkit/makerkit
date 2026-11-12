@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { defineJourney, defineStep, done, todo } from '../define';
+import { defineCheck, defineJourney, defineStep, done, todo } from '../define';
 import { NO_LOCKS as freeLocks } from '../locks';
 import { registerJourneyTools } from '../mcp';
 import { createFakeMcpServer } from '../testing/fake-mcp-server';
@@ -116,6 +116,33 @@ describe('journey tools', () => {
         },
       ],
     });
+  });
+
+  it("lists a journey's form (its save and read tools), and none for the rest", async () => {
+    const fake = createFakeMcpServer();
+    const step = defineCheck<object>({ id: 'file', title: 'Details', check: async () => todo('Not yet') });
+
+    registerJourneyTools(fake.server, {
+      journeys: [
+        defineJourney({
+          id: 'brand',
+          title: 'Your brand',
+          command: 'kit:brand',
+          form: { save: 'kit_brand_save', read: 'kit_brand_read' },
+          steps: [step],
+        }),
+        defineJourney({ id: 'plain', title: 'Plain', command: 'kit:plain', steps: [step] }),
+      ],
+      depsFor: () => ({}),
+      locks: freeLocks,
+    });
+
+    const { journeys } = (await fake.call('kit_journeys')).structuredContent as {
+      journeys: { id: string; form?: unknown }[];
+    };
+
+    expect(journeys[0]!.form).toEqual({ save: 'kit_brand_save', read: 'kit_brand_read' });
+    expect('form' in journeys[1]!).toBe(false);
   });
 
   it('sends progress notifications and stops on cancel', async () => {

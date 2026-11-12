@@ -73,6 +73,8 @@ export type Step<D> = StepDefinition<D> &
 export const JOURNEY_SCOPES = ['local', 'launch', 'prod'] as const;
 export type JourneyScope = (typeof JOURNEY_SCOPES)[number];
 
+export type JourneyForm = { save: string; read?: string };
+
 export type Journey<D> = {
   id: string;
   title: string;
@@ -86,6 +88,9 @@ export type Journey<D> = {
   flags?: string[];
   // it talks to an outside service (a payment provider, a host): MCP openWorldHint
   openWorld?: boolean;
+  // a form that collects what its steps need (the Makerkit Console): the
+  // kit's data tools that save it and, optionally, read what's saved
+  form?: JourneyForm;
   // the outside account it acts on, shown on every result
   account?: (deps: D) => Promise<HandoffAccount | undefined>;
   // its own summary and next steps for a run

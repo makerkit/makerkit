@@ -23,6 +23,9 @@ export const JourneysListOutputSchema = z.object({
       command: z.string(),
       tool: z.string(),
       scope: z.enum(JOURNEY_SCOPES),
+      // its form's data tools (save, and read for what's saved): a client
+      // offers the form only when it lists them
+      form: z.object({ save: z.string(), read: z.string().optional() }).optional(),
       steps: z.array(
         z.object({
           id: z.string(),

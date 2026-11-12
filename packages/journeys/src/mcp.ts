@@ -127,6 +127,7 @@ export function registerJourneyTools<D>(
         command: `pnpm ${journey.command}`,
         tool: toolNameOf(journey),
         scope: journey.scope ?? 'local',
+        ...(journey.form && { form: journey.form }),
         steps: journey.steps.map((step) => ({
           id: step.id,
           title: step.title,
