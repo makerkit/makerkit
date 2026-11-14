@@ -46,6 +46,16 @@ export type StepContext<D> = {
   prompter?: Prompter;
 };
 
+// a value the owner can give this step from a client (the Makerkit Console):
+// saved through the kit's env tool, so a client never reads .env. `accept` is
+// a RegExp source the kit applies to the value (e.g. '^sk_test_').
+export type StepInput = {
+  env: string;
+  label: string;
+  secret: boolean;
+  accept: string;
+};
+
 export type StepDefinition<D> = {
   // stable: `--step <id>` and MCP `step` name it
   id: string;
@@ -63,6 +73,8 @@ export type StepDefinition<D> = {
   // earlier steps it builds on: until they're done it reports todo
   // ("waits for …") without being checked
   needs?: string[];
+  // a value a client can collect for this step (a test key)
+  input?: StepInput;
 };
 
 export type Step<D> = StepDefinition<D> &

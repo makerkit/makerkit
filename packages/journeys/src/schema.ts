@@ -36,6 +36,16 @@ export const JourneysListOutputSchema = z.object({
           confirm: z.enum(CONFIRM_LEVELS),
           // left out of a run unless named in `step` (a proof, a process)
           onlyWhenNamed: z.boolean(),
+          // a value a client may collect for this step, saved with the kit's
+          // env tool; `accept` is a RegExp source the kit applies
+          input: z
+            .object({
+              env: z.string(),
+              label: z.string(),
+              secret: z.boolean(),
+              accept: z.string(),
+            })
+            .optional(),
         }),
       ),
     }),

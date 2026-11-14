@@ -145,6 +145,34 @@ describe('journey tools', () => {
     expect('form' in journeys[1]!).toBe(false);
   });
 
+  it("lists a step's input, and none for the rest", async () => {
+    const fake = createFakeMcpServer();
+    const input = { env: 'STRIPE_SECRET_KEY', label: 'Stripe test key', secret: true, accept: '^sk_test_' };
+
+    registerJourneyTools(fake.server, {
+      journeys: [
+        defineJourney({
+          id: 'billing',
+          title: 'Billing',
+          command: 'billing:setup',
+          steps: [
+            defineCheck<object>({ id: 'key', title: 'Key', input, check: async () => todo('missing') }),
+            defineCheck<object>({ id: 'plain', title: 'Plain', check: async () => todo('missing') }),
+          ],
+        }),
+      ],
+      depsFor: () => ({}),
+      locks: freeLocks,
+    });
+
+    const { journeys } = (await fake.call('kit_journeys')).structuredContent as {
+      journeys: { steps: { id: string; input?: unknown }[] }[];
+    };
+
+    expect(journeys[0]!.steps[0]!.input).toEqual(input);
+    expect('input' in journeys[0]!.steps[1]!).toBe(false);
+  });
+
   it('sends progress notifications and stops on cancel', async () => {
     const fake = createFakeMcpServer();
     const cancel = new AbortController();

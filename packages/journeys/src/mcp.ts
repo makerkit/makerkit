@@ -135,6 +135,7 @@ export function registerJourneyTools<D>(
           confirm: step.confirm.level,
           kind: step.kind,
           onlyWhenNamed: Boolean(step.onlyWhenNamed),
+          ...(step.input && { input: step.input }),
         })),
       }));
 
