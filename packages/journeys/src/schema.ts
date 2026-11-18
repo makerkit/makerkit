@@ -1,0 +1,69 @@
+import { z } from 'zod/v4';
+
+import { ActorSchema } from '@makerkit/handoff';
+
+import { CONFIRM_LEVELS, STEP_KINDS } from './types';
+
+// local, launch, prod or a kit's own (staging)
+const ScopeSchema = z.string().min(1);
+
+export const JourneyToolInputSchema = z.object({
+  // check: report, change nothing; plan: what apply would do; apply: run
+  // it; stop: end the process step named in `step`
+  mode: z.enum(['check', 'plan', 'apply', 'stop']).default('check'),
+  step: z.string().optional(),
+  // ids of `step`-level steps the owner said yes to
+  confirm: z.array(z.string()).optional(),
+});
+
+export const JourneysListInputSchema = z.object({});
+
+export const JourneysListOutputSchema = z.object({
+  journeys: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      command: z.string(),
+      tool: z.string(),
+      scope: ScopeSchema,
+      // its form's data tools (save, and read for what's saved): a client
+      // offers the form only when it lists them
+      form: z
+        .object({ save: z.string(), read: z.string().optional() })
+        .optional(),
+      steps: z.array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          actor: ActorSchema,
+          // process: keeps running once applied; kit_<journey> mode stop ends it
+          kind: z.enum(STEP_KINDS),
+          confirm: z.enum(CONFIRM_LEVELS),
+          // left out of a run unless named in `step` (a proof, a process)
+          onlyWhenNamed: z.boolean(),
+          // a value a client may collect for this step, saved with the kit's
+          // env tool; `accept` is a RegExp source the kit applies
+          input: z
+            .object({
+              env: z.string(),
+              label: z.string(),
+              secret: z.boolean(),
+              accept: z.string(),
+            })
+            .optional(),
+        }),
+      ),
+    }),
+  ),
+});
+
+export const DoctorInputSchema = z.object({
+  // local (default): this computer; launch: + going live; prod: the live
+  // app; or a scope of the kit's own
+  scope: ScopeSchema.default('local'),
+});
+
+// one journey kit_journeys lists
+export type JourneyInfo = z.infer<
+  typeof JourneysListOutputSchema
+>['journeys'][number];

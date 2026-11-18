@@ -16,23 +16,64 @@ import {
   READ_ONLY_TOOL,
   buildErrorResponse,
   buildStructuredResponse,
+  toErrorMessage,
 } from './tool-response';
+
+// any server with McpServer's registerTool, without the SDK's types: works
+// across SDK copies (a kit's SDK and this package's needn't be one install)
+export type ToolServer = {
+  registerTool(
+    name: string,
+    config: {
+      description?: string;
+      inputSchema?: unknown;
+      outputSchema?: unknown;
+      annotations?: object;
+    },
+    handler: (input: never, extra: never) => unknown,
+  ): unknown;
+};
 
 export interface RegisterEnvInspectorOptions {
   /** Prepended to every tool name, e.g. "kit_" keeps a kit's existing names. */
   prefix?: string;
+  /**
+   * Tools not to register, by unprefixed name, e.g. ['env_raw_write'] when
+   * agents must change env files one key at a time.
+   */
+  omit?: readonly EnvInspectorToolName[];
 }
+
+export type EnvInspectorToolName =
+  | 'env_schema'
+  | 'env_read'
+  | 'env_update'
+  | 'env_raw_read'
+  | 'env_raw_write';
 
 /**
  * Registers env_schema, env_read, env_update, env_raw_read and env_raw_write.
  * The accepted modes, env file names and apps come from the service settings.
  */
 export function registerEnvInspectorTools(
-  server: McpServer,
+  server: McpServer | ToolServer,
   service: EnvInspectorService,
   options: RegisterEnvInspectorOptions = {},
 ) {
   const name = (tool: string) => `${options.prefix ?? ''}${tool}`;
+  const keep = (tool: EnvInspectorToolName) => !options.omit?.includes(tool);
+  // suggests another tool by its registered name, and only when registered
+  const fail = (tool: EnvInspectorToolName, error: unknown) => {
+    const hint = hintOf(error);
+
+    if (hint && keep(hint.tool)) {
+      const message = `${toErrorMessage(error)} ${hint.text.replace('{tool}', name(hint.tool))}`;
+
+      return buildErrorResponse(name(tool), new Error(message));
+    }
+
+    return buildErrorResponse(name(tool), error);
+  };
 
   const inputs = createEnvInputSchemas({
     modes: service.modes,
@@ -45,118 +86,143 @@ export function registerEnvInspectorTools(
     ? ''
     : ' Values of secret variables are returned as "[REDACTED]".';
 
-  server.registerTool(
-    name('env_schema'),
-    {
-      title: 'Describe environment variables',
-      description:
-        'List the known environment variables by group with description, type, whether they are required or secret, and the variables they depend on. Contains no values.',
-      inputSchema: EnvSchemaInputSchema,
-      outputSchema: EnvSchemaOutputSchema,
-      annotations: READ_ONLY_TOOL,
-    },
-    async () => {
-      try {
-        return buildStructuredResponse(await service.getSchema());
-      } catch (error) {
-        return buildErrorResponse(name('env_schema'), error);
-      }
-    },
-  );
+  if (keep('env_schema')) {
+    server.registerTool(
+      name('env_schema'),
+      {
+        title: 'Describe environment variables',
+        description:
+          'List the known environment variables by group with description, type, whether they are required or secret, and the variables they depend on. Contains no values.',
+        inputSchema: EnvSchemaInputSchema,
+        outputSchema: EnvSchemaOutputSchema,
+        annotations: READ_ONLY_TOOL,
+      },
+      async () => {
+        try {
+          return buildStructuredResponse(await service.getSchema());
+        } catch (error) {
+          return fail('env_schema', error);
+        }
+      },
+    );
+  }
 
-  server.registerTool(
-    name('env_read'),
-    {
-      title: 'Read environment variables',
-      description:
-        'Read the environment variables of an app for a mode (development, production...): effective value, the .env file it comes from, the override chain across files, and validation errors. ' +
-        'Required variables that no file sets are listed with source "MISSING".' +
-        redactionNote,
-      inputSchema: inputs.read,
-      outputSchema: EnvReadOutputSchema,
-      annotations: READ_ONLY_TOOL,
-    },
-    async (input) => {
-      try {
-        const parsed = inputs.read.parse(input);
+  if (keep('env_read')) {
+    server.registerTool(
+      name('env_read'),
+      {
+        title: 'Read environment variables',
+        description:
+          'Read the environment variables of an app for a mode (development, production...): effective value, the .env file it comes from, the override chain across files, and validation errors. ' +
+          'Required variables that no file sets are listed with source "MISSING".' +
+          redactionNote,
+        inputSchema: inputs.read,
+        outputSchema: EnvReadOutputSchema,
+        annotations: READ_ONLY_TOOL,
+      },
+      async (input) => {
+        try {
+          const parsed = inputs.read.parse(input);
 
-        return buildStructuredResponse(
-          await service.read(parsed.mode, parsed.app),
-        );
-      } catch (error) {
-        return buildErrorResponse(name('env_read'), error);
-      }
-    },
-  );
+          return buildStructuredResponse(
+            await service.read(parsed.mode, parsed.app),
+          );
+        } catch (error) {
+          return fail('env_read', error);
+        }
+      },
+    );
+  }
 
-  server.registerTool(
-    name('env_update'),
-    {
-      title: 'Set an environment variable',
-      description:
-        'Set one environment variable in an .env file, replacing its existing line or appending it. ' +
-        "Without `file`, secrets go to the mode's gitignored .local file and other variables to the mode's committed file." +
-        (service.revealValues ? '' : ' "[REDACTED]" is rejected as a value.'),
-      inputSchema: inputs.update,
-      outputSchema: EnvUpdateOutputSchema,
-      annotations: IDEMPOTENT_MUTATING_TOOL,
-    },
-    async (input) => {
-      try {
-        return buildStructuredResponse(
-          await service.update(inputs.update.parse(input)),
-        );
-      } catch (error) {
-        return buildErrorResponse(name('env_update'), error);
-      }
-    },
-  );
+  if (keep('env_update')) {
+    server.registerTool(
+      name('env_update'),
+      {
+        title: 'Set an environment variable',
+        description:
+          'Set one environment variable in an .env file, replacing its existing line or appending it. ' +
+          "Without `file`, secrets go to the mode's gitignored .local file and other variables to the mode's committed file." +
+          (service.revealValues ? '' : ' "[REDACTED]" is rejected as a value.'),
+        inputSchema: inputs.update,
+        outputSchema: EnvUpdateOutputSchema,
+        annotations: IDEMPOTENT_MUTATING_TOOL,
+      },
+      async (input) => {
+        try {
+          return buildStructuredResponse(
+            await service.update(inputs.update.parse(input)),
+          );
+        } catch (error) {
+          return fail('env_update', error);
+        }
+      },
+    );
+  }
 
-  server.registerTool(
-    name('env_raw_read'),
-    {
-      title: 'Read an .env file',
-      description: 'Read the raw content of one .env file.' + redactionNote,
-      inputSchema: inputs.rawRead,
-      outputSchema: EnvRawReadOutputSchema,
-      annotations: READ_ONLY_TOOL,
-    },
-    async (input) => {
-      try {
-        const parsed = inputs.rawRead.parse(input);
+  if (keep('env_raw_read')) {
+    server.registerTool(
+      name('env_raw_read'),
+      {
+        title: 'Read an .env file',
+        description: 'Read the raw content of one .env file.' + redactionNote,
+        inputSchema: inputs.rawRead,
+        outputSchema: EnvRawReadOutputSchema,
+        annotations: READ_ONLY_TOOL,
+      },
+      async (input) => {
+        try {
+          const parsed = inputs.rawRead.parse(input);
 
-        return buildStructuredResponse(
-          await service.rawRead(parsed.file, parsed.app),
-        );
-      } catch (error) {
-        return buildErrorResponse(name('env_raw_read'), error);
-      }
-    },
-  );
+          return buildStructuredResponse(
+            await service.rawRead(parsed.file, parsed.app),
+          );
+        } catch (error) {
+          return fail('env_raw_read', error);
+        }
+      },
+    );
+  }
 
-  server.registerTool(
-    name('env_raw_write'),
-    {
-      title: 'Write an .env file',
-      description:
-        'Replace the content of one .env file.' +
-        (service.revealValues
-          ? ''
-          : ' Lines whose value is "[REDACTED]" keep the value the file has now.'),
-      inputSchema: inputs.rawWrite,
-      outputSchema: EnvRawWriteOutputSchema,
-      annotations: DESTRUCTIVE_TOOL,
-    },
-    async (input) => {
-      try {
-        const parsed = inputs.rawWrite.parse(input);
+  if (keep('env_raw_write')) {
+    server.registerTool(
+      name('env_raw_write'),
+      {
+        title: 'Write an .env file',
+        description:
+          'Replace the content of one .env file.' +
+          (service.revealValues
+            ? ''
+            : ' Lines whose value is "[REDACTED]" keep the value the file has now.'),
+        inputSchema: inputs.rawWrite,
+        outputSchema: EnvRawWriteOutputSchema,
+        annotations: DESTRUCTIVE_TOOL,
+      },
+      async (input) => {
+        try {
+          const parsed = inputs.rawWrite.parse(input);
 
-        return buildStructuredResponse(
-          await service.rawWrite(parsed.file, parsed.content, parsed.app),
-        );
-      } catch (error) {
-        return buildErrorResponse(name('env_raw_write'), error);
-      }
-    },
-  );
+          return buildStructuredResponse(
+            await service.rawWrite(parsed.file, parsed.content, parsed.app),
+          );
+        } catch (error) {
+          return fail('env_raw_write', error);
+        }
+      },
+    );
+  }
+}
+
+// duck-typed: each entry point bundles its own copy of EnvInspectorError
+function hintOf(error: unknown) {
+  if (!(error instanceof Error) || !('hint' in error)) {
+    return undefined;
+  }
+
+  const hint = error.hint as { tool?: unknown; text?: unknown } | undefined;
+
+  if (typeof hint?.tool !== 'string' || typeof hint.text !== 'string') {
+    return undefined;
+  }
+
+  return { tool: hint.tool as EnvInspectorToolName, text: hint.text };
 }

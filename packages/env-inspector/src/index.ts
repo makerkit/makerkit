@@ -21,6 +21,7 @@ export {
   type EnvEntry,
 } from './parse';
 export {
+  EnvInspectorError,
   REDACTED,
   createSecretMatcher,
   redactEnvContent,

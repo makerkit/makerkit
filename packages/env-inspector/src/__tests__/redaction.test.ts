@@ -139,7 +139,7 @@ describe('raw read / write redaction', () => {
 
     expect(await service.rawRead('.env.local')).toEqual({
       content: [
-        '# local secrets',
+        `# ${REDACTED}:1`,
         `STRIPE_SECRET_KEY=${REDACTED}`,
         `UNKNOWN_TOKEN=${REDACTED}`,
         'EMPTY_SECRET=',

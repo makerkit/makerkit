@@ -1,0 +1,59 @@
+{
+  "name": "@makerkit/handoff",
+  "version": "0.0.1",
+  "description": "One result shape for commands and MCP tools that coding agents drive: status and exit code, steps, who acts next (agent or human) and how to resume, with secrets masked.",
+  "keywords": [
+    "ai-agents",
+    "claude-code",
+    "cli",
+    "codex",
+    "mcp"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/makerkit/makerkit",
+    "directory": "packages/handoff"
+  },
+  "main": "./index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.mjs",
+      "require": "./index.js"
+    },
+    "./node": {
+      "types": "./node.d.ts",
+      "import": "./node.mjs",
+      "require": "./node.js"
+    },
+    "./mcp": {
+      "types": "./mcp.d.ts",
+      "import": "./mcp.mjs",
+      "require": "./mcp.js"
+    },
+    "./schema.json": "./handoff.schema.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "directory": "dist",
+    "linkDirectory": true
+  },
+  "scripts": {
+    "build": "tsdown && node ../../scripts/prepare-dist.mjs && cp handoff.schema.json dist/",
+    "schema": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/write-schema.mts",
+    "typecheck": "tsc --noEmit -p tsconfig.lib.json && tsc --noEmit -p tsconfig.spec.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.25.1 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  }
+}

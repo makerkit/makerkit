@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseEnvFile, setEnvValue } from '../parse';
+import { parseEnvContent, parseEnvFile, setEnvValue } from '../parse';
 
 describe('parseEnvFile', () => {
   it('reads keys, values and 1-based lines, skipping comments and blanks', () => {
@@ -20,7 +20,8 @@ describe('parseEnvFile', () => {
       { key: 'B', value: 'quoted value', source: '.env', line: 4 },
       { key: 'C', value: 'single', source: '.env', line: 5 },
       { key: 'D', value: 'exported', source: '.env', line: 6 },
-      { key: 'E', value: 'say "hi"', source: '.env', line: 7 },
+      // unquoted values are literal, as dotenv reads them
+      { key: 'E', value: 'say \\"hi\\"', source: '.env', line: 7 },
       { key: 'F', value: '', source: '.env', line: 8 },
     ]);
   });
@@ -57,5 +58,42 @@ describe('setEnvValue', () => {
 
   it('quotes values that contain a newline', () => {
     expect(setEnvValue('', 'K', 'a\nb')).toBe('K="a\nb"');
+  });
+});
+
+describe('parseEnvContent: comments after a value', () => {
+  it('reads values as dotenv does: quoted whole, unquoted up to #', () => {
+    const { entries } = parseEnvContent(
+      'A=sk_test_x # mine\nB="v # w" # c\nC = spaced\nD=a#b\n',
+    );
+
+    expect(entries.map((e) => [e.key, e.value])).toEqual([
+      ['A', 'sk_test_x'],
+      ['B', 'v # w'],
+      ['C', 'spaced'],
+      ['D', 'a'],
+    ]);
+  });
+});
+
+describe('Windows line endings (CRLF)', () => {
+  const crlf = 'DATABASE_URL=postgres://me@neon/db\r\nSECRET="a b"\r\n';
+
+  it('reads every key and value', () => {
+    expect(
+      parseEnvContent(crlf).entries.map((entry) => [entry.key, entry.value]),
+    ).toEqual([
+      ['DATABASE_URL', 'postgres://me@neon/db'],
+      ['SECRET', 'a b'],
+    ]);
+  });
+
+  it('writes a key keeping the file in CRLF, values untouched', () => {
+    expect(setEnvValue(crlf, 'NEW', 'x')).toBe(
+      'DATABASE_URL=postgres://me@neon/db\r\nSECRET="a b"\r\nNEW=x\r\n',
+    );
+    expect(setEnvValue(crlf, 'DATABASE_URL', 'local')).toBe(
+      'DATABASE_URL=local\r\nSECRET="a b"\r\n',
+    );
   });
 });

@@ -47,7 +47,7 @@ export const VITE_ENV_FILES: EnvFilePrecedence = {
 
 /**
  * Secrets go to a gitignored `.local` file; other values to the committed
- * mode file. Modes not listed here use `.env.<mode>.local` and `.env.<mode>`.
+ * mode file. Modes not listed here: see getWriteTarget.
  */
 export const DEFAULT_WRITE_TARGETS: Record<EnvMode, EnvWriteTargets> = {
   development: { secret: '.env.local', nonSecret: '.env.development' },
@@ -84,15 +84,40 @@ export function listEnvFileNames(envFiles: EnvFilePrecedence) {
   return [...new Set(Object.values(envFiles).flat())];
 }
 
-export function getWriteTarget(
-  targets: Record<EnvMode, EnvWriteTargets>,
-  mode: EnvMode,
-  secret: boolean,
-) {
-  const target = targets[mode] ?? {
-    secret: `.env.${mode}.local`,
-    nonSecret: `.env.${mode}`,
-  };
+/**
+ * The file `env_update` writes to without `file`: the mode's write target;
+ * for a mode without one, `.env.<mode>.local` / `.env.<mode>` when the mode
+ * loads it, else the mode's highest-precedence `.local` / committed file.
+ * Throws rather than send a secret to a committed file.
+ */
+export function getWriteTarget(input: {
+  targets: Record<EnvMode, EnvWriteTargets>;
+  files: readonly string[];
+  mode: EnvMode;
+  secret: boolean;
+}) {
+  const { targets, files, mode, secret } = input;
+  const target = targets[mode];
 
-  return secret ? target.secret : target.nonSecret;
+  if (target) {
+    return secret ? target.secret : target.nonSecret;
+  }
+
+  const preferred = secret ? `.env.${mode}.local` : `.env.${mode}`;
+
+  if (files.includes(preferred)) {
+    return preferred;
+  }
+
+  const fallback = [...files]
+    .reverse()
+    .find((file) => file.endsWith('.local') === secret);
+
+  if (!fallback) {
+    throw new Error(
+      `Mode "${mode}" loads no ${secret ? '.local' : 'committed'} file to write to. Pass \`file\`, or set writeTargets.${mode}.`,
+    );
+  }
+
+  return fallback;
 }

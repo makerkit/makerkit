@@ -115,7 +115,7 @@ describe('EnvInspectorService.update', () => {
     });
 
     expect(store[`${WEB_DIR}/.env.local`]).toBe(
-      'EXISTING=value\n\nNEW_KEY=new_value',
+      'EXISTING=value\nNEW_KEY=new_value\n',
     );
   });
 

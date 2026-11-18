@@ -4,7 +4,16 @@ import { createEnvInspectorService } from '../env-inspector.service';
 import { createEnvInspectorDeps } from '../node';
 import { REDACTED } from '../redact';
 
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -82,7 +91,7 @@ describe('a single-app Next.js project with no model', () => {
 
     await service.update({ key: 'B', value: '2' });
 
-    expect(await readFile(join(root, '.env.local'), 'utf8')).toBe('A=1\n\nB=2');
+    expect(await readFile(join(root, '.env.local'), 'utf8')).toBe('A=1\nB=2\n');
     expect(await service.getVariable('B')).toBe('2');
     expect(await service.rawRead('.env.production')).toEqual({
       content: '',
@@ -110,5 +119,47 @@ describe('a monorepo app configured like a Makerkit kit', () => {
     expect(state!.appName).toBe('web');
     expect(state!.filePath).toBe(join(root, 'apps/web'));
     expect(Object.keys(state!.variables)).toEqual(['NEXT_PUBLIC_SITE_URL']);
+  });
+});
+
+describe('writing env files on disk', () => {
+  const settings = {
+    envFiles: { development: ['.env', '.env.local'] },
+    writeTargets: { development: { secret: '.env.local', nonSecret: '.env' } },
+  };
+
+  it('creates a new file readable by its owner only', async () => {
+    const root = await createProject({});
+    const service = createEnvInspectorService(
+      createEnvInspectorDeps(root, { settings }),
+    );
+
+    await service.update({ key: 'API_TOKEN', value: 't' });
+
+    expect((await stat(join(root, '.env.local'))).mode & 0o777).toBe(0o600);
+  });
+
+  it('keeps the mode of an existing file and leaves no temp file', async () => {
+    const root = await createProject({ '.env.local': 'A=1\n' });
+    await chmod(join(root, '.env.local'), 0o640);
+    const service = createEnvInspectorService(
+      createEnvInspectorDeps(root, { settings }),
+    );
+
+    await service.update({ key: 'B', value: '2' });
+
+    expect((await stat(join(root, '.env.local'))).mode & 0o777).toBe(0o640);
+    expect(await readdir(root)).toEqual(['.env.local']);
+  });
+
+  it('replaces the file in one rename, never truncating it in place', async () => {
+    const root = await createProject({ '.env.local': 'A=1\n' });
+    const before = (await stat(join(root, '.env.local'))).ino;
+    const deps = createEnvInspectorDeps(root, { settings });
+
+    await deps.writeFile(join(root, '.env.local'), 'A=2\n');
+
+    expect((await stat(join(root, '.env.local'))).ino).not.toBe(before);
+    expect(await readFile(join(root, '.env.local'), 'utf8')).toBe('A=2\n');
   });
 });
