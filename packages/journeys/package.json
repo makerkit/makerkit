@@ -1,6 +1,7 @@
 {
   "name": "@makerkit/journeys",
   "version": "0.0.1",
+  "private": false,
   "description": "The journey engine behind Makerkit kits' setup commands and MCP tools: steps with checks, confirm levels, resume commands, locks and background processes, one definition for the CLI and MCP, and kit_doctor over every journey. Results are @makerkit/handoff.",
   "keywords": [
     "ai-agents",

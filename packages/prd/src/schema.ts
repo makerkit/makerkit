@@ -6,7 +6,7 @@ import type { StructuredPRD, UserStory } from './types';
 const FilenameSchema = z
   .string()
   .min(1)
-  .describe('PRD file name inside .prds, e.g. notes-feature.json');
+  .describe('PRD file name in the PRD directory, e.g. notes-feature.json');
 
 export const StoryStatusSchema = z.enum([
   'not_started',
@@ -65,6 +65,31 @@ export const CriterionProofSchema = z.object({
     ),
 });
 
+const RoadmapLabelSchema = z.string().trim().min(1).max(120);
+export const PrdCriticalitySchema = z.enum([
+  'critical',
+  'high',
+  'medium',
+  'low',
+]);
+export const PrdRoadmapSchema = z.object({
+  order: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+  criticality: PrdCriticalitySchema.optional(),
+  plan: RoadmapLabelSchema.optional(),
+  group: RoadmapLabelSchema.optional(),
+  section: RoadmapLabelSchema.optional(),
+});
+
+export const PrdRoadmapUpdateSchema = z
+  .object({
+    order: PrdRoadmapSchema.shape.order.nullable(),
+    criticality: PrdRoadmapSchema.shape.criticality.nullable(),
+    plan: PrdRoadmapSchema.shape.plan.nullable(),
+    group: PrdRoadmapSchema.shape.group.nullable(),
+    section: PrdRoadmapSchema.shape.section.nullable(),
+  })
+  .strict();
+
 export const PrdSummarySchema = z.object({
   filename: z.string(),
   title: z.string(),
@@ -73,6 +98,7 @@ export const PrdSummarySchema = z.object({
   total_stories: z.number().int().min(0),
   completed_stories: z.number().int().min(0),
   blocked_stories: z.number().int().min(0),
+  roadmap: PrdRoadmapSchema.optional(),
 });
 
 export const ListPrdsInputSchema = z.object({});
@@ -109,6 +135,7 @@ export const CreatePrdInputSchema = z.object({
   outOfScope: z.array(z.string()).optional(),
   assumptions: z.array(z.string()).optional(),
   openQuestions: z.array(z.string()).optional(),
+  roadmap: PrdRoadmapSchema.strict().optional(),
   template: z
     .enum(TEMPLATE_IDS)
     .optional()
@@ -194,6 +221,14 @@ export const UpdateStoryStatusInputSchema = z.object({
   filename: FilenameSchema,
   storyId: z.string().min(1),
   status: StoryStatusSchema,
+  workerId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Stable run ID used to claim an active story and to update a story already claimed by this worker.',
+    ),
   notes: z.string().optional(),
   recordDeviations: z
     .array(z.string().min(1))
@@ -485,12 +520,14 @@ export const GetStoryOutputSchema = z.object({
     permissions: z.array(z.string()),
     compliance: z.array(z.string()),
     considerations: z.array(z.string()),
+    story_notes: z.array(z.string()),
   }),
   /** Parts of the PRD that do not apply, with the reason: do not invent them. */
   not_applicable: z.record(z.string(), z.string()),
   /** Standing design rules and accepted design decisions. */
   design: z.object({
     guidance: z.array(z.string()),
+    story_notes: z.array(z.string()),
     decisions: z.array(
       z.object({ id: z.string(), decision: z.string(), rationale: z.string() }),
     ),
@@ -511,6 +548,7 @@ export const GetStoryOutputSchema = z.object({
 export const AddStoryLogInputSchema = z.object({
   filename: FilenameSchema,
   storyId: z.string().min(1),
+  workerId: z.string().trim().min(1).optional(),
   whatsNew: z
     .array(z.string().min(1))
     .min(1)
@@ -541,6 +579,7 @@ const StringList = z.array(z.string().min(1));
  * merged (only the keys supplied change); list sections are replaced.
  */
 export const PrdSectionValueSchemas = {
+  roadmap: PrdRoadmapUpdateSchema,
   introduction: z
     .object({ title: z.string().min(1), overview: z.string() })
     .partial()
@@ -688,7 +727,7 @@ export const UpdatePrdSectionInputSchema = z.object({
   value: z
     .unknown()
     .describe(
-      'Object sections (introduction, problemStatement, solutionOverview, technicalRequirements, technicalContracts, acceptanceCriteria, constraints, rolloutPlan, measurementPlan) take an object and only the keys given change. List sections (nonGoals, outOfScope, assumptions, designGuidance, securityConsiderations) take a string array and replace the list. openQuestions takes an array of { question, why, options, recommended, storyIds } (a plain string is accepted too) and replaces the list; keep the ids of existing questions. risks, dependencies and edgeCases take an array of items and replace the list; items without an id get one. An edge case is { case, expectedBehavior, status: "open" | "decided", storyIds? }; a decided one needs expectedBehavior, and storyIds must name existing stories.',
+      'roadmap takes a partial object with order, criticality, plan, group and section. Pass null to clear a field. Object sections (introduction, problemStatement, solutionOverview, technicalRequirements, technicalContracts, acceptanceCriteria, constraints, rolloutPlan, measurementPlan) take an object and only the keys given change. List sections (nonGoals, outOfScope, assumptions, designGuidance, securityConsiderations) take a string array and replace the list. openQuestions takes an array of { question, why, options, recommended, storyIds } (a plain string is accepted too) and replaces the list; keep the ids of existing questions. risks, dependencies and edgeCases take an array of items and replace the list; items without an id get one. An edge case is { case, expectedBehavior, status: "open" | "decided", storyIds? }; a decided one needs expectedBehavior, and storyIds must name existing stories.',
     ),
 });
 
@@ -776,7 +815,7 @@ export const AddAttachmentInputSchema = z.object({
     .min(1)
     .optional()
     .describe(
-      'File inside the PRD folder (.prds/<prd name>/), relative to it, e.g. "mockups/approve.png". Save the file there first. Give path or url, not both.',
+      'File inside the PRD folder (next to its JSON file), relative to it, e.g. "mockups/approve.png". Save the file there first. Give path or url, not both.',
     ),
   url: z
     .string()

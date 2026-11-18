@@ -58,11 +58,11 @@ const STORY = {
   priority: 'P2' as const,
 };
 
-async function seed() {
+async function seed(prdsDir = '/repo/.prds') {
   const files: Record<string, string> = {
-    '/repo/.prds/notes/mockups/editor.png': 'png',
+    [`${prdsDir}/notes/mockups/editor.png`]: 'png',
   };
-  const service = createPrdService(createDeps(files));
+  const service = createPrdService({ ...createDeps(files), prdsDir });
 
   const { filename } = await service.create({
     title: 'Notes',
@@ -79,12 +79,36 @@ async function seed() {
   await service.addUserStory({ ...STORY, filename, action: 'share a note' });
 
   const read = () =>
-    JSON.parse(files[`/repo/.prds/${filename}`]!) as StructuredPRD;
+    JSON.parse(files[`${prdsDir}/${filename}`]!) as StructuredPRD;
 
   return { files, filename, service, read };
 }
 
 describe('attachments', () => {
+  it('uses custom PRD directories for local files and agent-facing paths', async () => {
+    for (const [prdsDir, prdsPath] of [
+      ['/repo/docs/product plans', 'docs/product plans'],
+      ['/external/plans', '/external/plans'],
+    ] as const) {
+      const { filename, service } = await seed(prdsDir);
+      await service.addAttachment({
+        filename,
+        title: 'Editor',
+        path: 'mockups/editor.png',
+        storyIds: ['US001'],
+      });
+
+      expect((await service.get({ filename })).path).toBe(
+        `${prdsDir}/notes.json`,
+      );
+      expect((await service.list()).prds_dir).toBe(prdsDir);
+      const story = await service.getStory({ filename, storyId: 'US001' });
+      expect(story.attachments[0]?.path).toBe(
+        `${prdsPath}/notes/mockups/editor.png`,
+      );
+    }
+  });
+
   it('records a file in the PRD folder and links it to stories', async () => {
     const { filename, service, read } = await seed();
 

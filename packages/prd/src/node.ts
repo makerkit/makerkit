@@ -2,15 +2,19 @@ import { createRepoChecksServices } from '@makerkit/repo-checks/node';
 
 import type { PrdDeps, PrdVerificationResult } from './prd.service';
 
+import { randomUUID } from 'node:crypto';
 import {
   access,
   mkdir,
   readFile,
   readdir,
+  rename,
+  rm,
+  rmdir,
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 /** Check-only scripts that gate marking a story as completed. */
 const DEFAULT_COMPLETION_CHECKS = ['typecheck', 'lint'];
@@ -19,6 +23,8 @@ const DEFAULT_COMPLETION_CHECKS = ['typecheck', 'lint'];
 const MAX_FAILURE_DETAIL = 300;
 
 export interface NodePrdDepsOptions {
+  /** Absolute directory or a path relative to the project root. */
+  prdsDir?: string;
   /**
    * Decides whether a story may be marked completed. Defaults to running the
    * project's `typecheck` and `lint` scripts (see `createScriptVerifier`).
@@ -33,14 +39,25 @@ export function createNodePrdDeps(
 ): PrdDeps {
   return {
     rootPath,
+    prdsDir: options.prdsDir ? resolve(rootPath, options.prdsDir) : undefined,
     readdir(path) {
       return readdir(path);
     },
     readFile(path) {
       return readFile(path, 'utf8');
     },
-    writeFile(path, content) {
-      return writeFile(path, content, 'utf8');
+    async writeFile(path, content) {
+      const temporaryPath = `${path}.${randomUUID()}.tmp`;
+
+      try {
+        await writeFile(temporaryPath, content, {
+          encoding: 'utf8',
+          flag: 'wx',
+        });
+        await rename(temporaryPath, path);
+      } finally {
+        await rm(temporaryPath, { force: true });
+      }
     },
     async mkdir(path) {
       await mkdir(path, { recursive: true });
@@ -49,6 +66,27 @@ export function createNodePrdDeps(
       return unlink(path);
     },
     fileExists,
+    async withWriteLock(path, write) {
+      const lockPath = `${path}.lock`;
+
+      try {
+        await mkdir(lockPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+          throw new Error(
+            `PRD write lock is held at "${lockPath}". Reload the PRD and retry. If a writer crashed, verify that no writer is active before removing the lock directory.`,
+          );
+        }
+
+        throw error;
+      }
+
+      try {
+        return await write();
+      } finally {
+        await rmdir(lockPath);
+      }
+    },
     now() {
       return new Date();
     },

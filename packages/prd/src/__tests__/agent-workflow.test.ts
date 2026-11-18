@@ -361,6 +361,16 @@ describe('MCP registration', () => {
     expect(text).toContain('get_next_story');
     expect(text).toContain('add_story_log');
     expect(text).toContain('deviations');
+    expect(text).toContain('without waiting for human approval');
+    expect(text).toContain('update_story_status with status "completed"');
+    expect(text).toContain('Repeat the story selection');
+    expect(implementStoryPrompt(filename, 'US003')).toContain(
+      'Start with story US003.',
+    );
+    const singleStory = prompt!.handler({ filename, singleStory: true })
+      .messages[0]!.content.text;
+    expect(singleStory).toContain('Handle one story');
+    expect(singleStory).not.toContain('Repeat the story selection');
     expect(text).not.toContain('run_checks');
 
     const review = fake.prompts.find((entry) => entry.name === 'review_story');

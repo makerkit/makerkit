@@ -678,6 +678,7 @@ export function buildStoryContext(
   prd: StructuredPRD,
   storyId: string,
   filename: string,
+  prdsPath?: string,
 ) {
   const story = findStory(prd, storyId);
   const linked = new Set(story.attachmentIds ?? []);
@@ -700,12 +701,13 @@ export function buildStoryContext(
       non_goals: prd.nonGoals,
       out_of_scope: prd.outOfScope,
       global_acceptance_criteria: prd.acceptanceCriteria.global,
-      attachments: resolveAttachments(filename, prd.attachments),
+      attachments: resolveAttachments(filename, prd.attachments, prdsPath),
     },
     story,
     attachments: resolveAttachments(
       filename,
       prd.attachments.filter((attachment) => linked.has(attachment.id)),
+      prdsPath,
     ),
     phase: phase ? { id: phase.id, name: phase.name } : null,
     edge_cases: edgeCasesForStory(prd, story.id),

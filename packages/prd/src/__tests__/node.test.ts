@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createNodePrdDeps, createScriptVerifier } from '../node';
+import { createPrdService } from '../prd.service';
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -118,6 +119,63 @@ describe('createScriptVerifier diagnostics', () => {
 });
 
 describe('createNodePrdDeps', () => {
+  it('allows only one worker to claim a story across service instances', async () => {
+    const root = await createProject({});
+    const first = createPrdService(createNodePrdDeps(root));
+    const second = createPrdService(createNodePrdDeps(root));
+    const { filename } = await first.create({
+      title: 'Claims',
+      overview: '',
+      problemStatement: '',
+      marketOpportunity: '',
+      targetUsers: [],
+      solutionDescription: '',
+      keyFeatures: [],
+      successMetrics: [],
+    });
+    const { story_id: storyId } = await first.addUserStory({
+      filename,
+      userType: 'member',
+      action: 'save a note',
+      benefit: 'keep a record',
+      acceptanceCriteria: ['The note is saved'],
+      priority: 'P2',
+    });
+    const claim = { filename, storyId, status: 'in_progress' as const };
+
+    const results = await Promise.allSettled([
+      first.updateStoryStatus({ ...claim, workerId: 'first' }),
+      second.updateStoryStatus({ ...claim, workerId: 'second' }),
+    ]);
+
+    expect(results.map((result) => result.status).sort()).toEqual([
+      'fulfilled',
+      'rejected',
+    ]);
+    const owner = results[0]?.status === 'fulfilled' ? 'first' : 'second';
+    const other = owner === 'first' ? 'second' : 'first';
+    expect((await first.getStory({ filename, storyId })).story.workerId).toBe(
+      owner,
+    );
+    await expect(
+      second.addStoryLog({
+        filename,
+        storyId,
+        workerId: other,
+        whatsNew: ['Saved'],
+        technicalNotes: [],
+      }),
+    ).rejects.toThrow('claimed by another worker');
+    await first.updateStoryStatus({
+      ...claim,
+      workerId: owner,
+      status: 'blocked',
+    });
+    await expect(
+      second.updateStoryStatus({ ...claim, workerId: other }),
+    ).resolves.toMatchObject({ status: 'in_progress' });
+  });
+
   it('uses an injected verifier instead of running scripts', async () => {
     const root = await createProject({
       typecheck: 'node -e "process.exit(1)"',

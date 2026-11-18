@@ -11,18 +11,23 @@ export function attachmentsFolder(filename: string) {
 }
 
 /** An attachment's file relative to the project root, e.g. `.prds/notes/a.png`. */
-export function attachmentProjectPath(filename: string, path: string) {
-  return `.prds/${attachmentsFolder(filename)}/${path}`;
+export function attachmentProjectPath(
+  filename: string,
+  path: string,
+  prdsPath = '.prds',
+) {
+  return `${prdsPath.replace(/\/$/, '')}/${attachmentsFolder(filename)}/${path}`;
 }
 
 /** Attachments as an agent needs them: file paths from the project root. */
 export function resolveAttachments(
   filename: string,
   attachments: Attachment[],
+  prdsPath?: string,
 ): StoryAttachment[] {
   return attachments.map(({ path, ...attachment }) => ({
     ...attachment,
-    ...(path ? { path: attachmentProjectPath(filename, path) } : {}),
+    ...(path ? { path: attachmentProjectPath(filename, path, prdsPath) } : {}),
   }));
 }
 

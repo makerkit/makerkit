@@ -89,6 +89,8 @@ export interface UserStory {
   estimatedComplexity: StoryComplexity;
   dependencies: string[];
   notes?: string;
+  /** Worker that claimed the active story through update_story_status. */
+  workerId?: string;
   completedAt?: string;
   verification?: StoryVerification;
   log?: StoryLogEntry[];
@@ -230,6 +232,14 @@ export interface StoryTraceabilityMap {
   successMetricIds: string[];
 }
 
+export interface PrdRoadmap {
+  order?: number;
+  criticality?: 'critical' | 'high' | 'medium' | 'low';
+  plan?: string;
+  group?: string;
+  section?: string;
+}
+
 /**
  * Text fields may use Markdown. Longer text (the overview, problem, solution
  * description, story notes, decision rationale) may use any block Markdown;
@@ -238,6 +248,8 @@ export interface StoryTraceabilityMap {
  * and links. Raw HTML is not rendered.
  */
 export interface StructuredPRD {
+  roadmap?: PrdRoadmap;
+
   introduction: {
     title: string;
     overview: string;

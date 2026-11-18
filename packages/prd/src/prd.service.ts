@@ -31,7 +31,6 @@ import {
   createPhase,
   deleteStory,
   findStory,
-  incompleteDependencies,
   recomputeProgress,
   nextStoryId,
   renderUserStory,
@@ -42,6 +41,7 @@ import {
 } from './prd-operations';
 import { implementStoryPrompt } from './prompts';
 import { assertSafeFileName, assertSafeRelativePath } from './safe-file-name';
+import { PrdCriticalitySchema, PrdRoadmapSchema } from './schema';
 import type {
   AddUserStoryInput,
   AddUserStoryOutput,
@@ -101,7 +101,7 @@ import type {
 import { PRD_TEMPLATES, getTemplate } from './templates';
 import type { StoryComplexity, StructuredPRD, UserStory } from './types';
 
-import { join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 export interface PrdVerificationDiagnostic {
   file: string;
@@ -123,6 +123,7 @@ export interface PrdVerificationResult {
 
 export interface PrdDeps {
   rootPath: string;
+  prdsDir?: string;
   readdir(path: string): Promise<string[]>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
@@ -130,6 +131,8 @@ export interface PrdDeps {
   mkdir(path: string): Promise<void>;
   unlink(path: string): Promise<void>;
   fileExists(path: string): Promise<boolean>;
+  /** Serializes revision checks and writes across processes sharing a PRD. */
+  withWriteLock?<T>(path: string, write: () => Promise<T>): Promise<T>;
   now(): Date;
   /**
    * Runs the project's checks before a story may be marked completed. When
@@ -166,10 +169,20 @@ export function createPrdService(deps: PrdDeps) {
 }
 
 export class PrdService {
+  private pendingWrite: Promise<unknown> = Promise.resolve();
+
   constructor(private readonly deps: PrdDeps) {}
 
   get prdsDir() {
-    return join(this.deps.rootPath, '.prds');
+    return this.deps.prdsDir ?? join(this.deps.rootPath, '.prds');
+  }
+
+  /** Path for agent-facing instructions, relative to the project when possible. */
+  get prdsPath() {
+    const path = relative(this.deps.rootPath, this.prdsDir);
+    const outside =
+      isAbsolute(path) || path === '..' || path.startsWith(`..${sep}`);
+    return (outside ? this.prdsDir : path || '.').split(sep).join('/');
   }
 
   async list(): Promise<ListPrdsOutput> {
@@ -189,6 +202,7 @@ export class PrdService {
           total_stories: prd.progress.total,
           completed_stories: prd.progress.completed,
           blocked_stories: prd.progress.blocked,
+          ...(prd.roadmap ? { roadmap: prd.roadmap } : {}),
         });
       } catch (error) {
         warnings.push(
@@ -196,6 +210,20 @@ export class PrdService {
         );
       }
     }
+
+    prds.sort((a, b) => {
+      const orderA = a.roadmap?.order ?? Infinity;
+      const orderB = b.roadmap?.order ?? Infinity;
+      const criticality = PrdCriticalitySchema.options;
+      const rankA = a.roadmap?.criticality
+        ? criticality.indexOf(a.roadmap.criticality)
+        : criticality.length;
+      const rankB = b.roadmap?.criticality
+        ? criticality.indexOf(b.roadmap.criticality)
+        : criticality.length;
+
+      return orderA === orderB ? rankA - rankB : orderA - orderB;
+    });
 
     return { prds, total: prds.length, prds_dir: this.prdsDir, warnings };
   }
@@ -227,6 +255,9 @@ export class PrdService {
     const defaults = input.template ? getTemplate(input.template).defaults : {};
 
     const prd: StructuredPRD = {
+      ...(input.roadmap
+        ? { roadmap: PrdRoadmapSchema.parse(input.roadmap) }
+        : {}),
       introduction: {
         title: input.title,
         overview: input.overview,
@@ -464,11 +495,7 @@ export class PrdService {
       );
     }
 
-    assertCanEnterStatus(
-      current,
-      findStory(current, input.storyId),
-      input.status,
-    );
+    this.assertStoryStatusUpdate(current, input);
 
     if (input.recordDeviations?.length) {
       if (input.status !== 'completed') {
@@ -502,8 +529,7 @@ export class PrdService {
     // Verification can take minutes: reload so concurrent edits made in the
     // meantime are not overwritten by a stale snapshot.
     const prd = await this.load(filename);
-    const story = findStory(prd, input.storyId);
-    assertCanEnterStatus(prd, story, input.status);
+    const story = this.assertStoryStatusUpdate(prd, input);
 
     const previousStatus = story.status;
 
@@ -523,6 +549,13 @@ export class PrdService {
     }
 
     story.status = input.status;
+    if (input.status === 'in_progress' || input.status === 'review') {
+      if (input.workerId) {
+        story.workerId = input.workerId;
+      }
+    } else {
+      delete story.workerId;
+    }
 
     const recordedDecisions = input.recordDeviations?.length
       ? recordDeviations(prd, story, input.recordDeviations, this.today())
@@ -569,18 +602,9 @@ export class PrdService {
   ): Promise<GetImplementationPromptsOutput> {
     const name = this.safeName(filename);
     const prd = await this.load(name);
-    const prompts: string[] = [];
-
-    // Only stories that can start now: the prompt sets them in progress.
-    for (const story of prd.userStories
-      .filter(
-        (s) =>
-          s.status === 'not_started' &&
-          incompleteDependencies(prd, s).length === 0,
-      )
-      .slice(0, 3)) {
-      prompts.push(implementStoryPrompt(name, story.id));
-    }
+    const prompts = pickNextStory(prd).story
+      ? [implementStoryPrompt(name)]
+      : [];
 
     return { prompts, total: prompts.length };
   }
@@ -726,24 +750,64 @@ export class PrdService {
     const filename = this.safeName(input.filename);
     const prd = await this.load(filename);
 
-    return buildStoryContext(prd, input.storyId, filename);
+    return buildStoryContext(prd, input.storyId, filename, this.prdsPath);
   }
 
   async addStoryLog(input: AddStoryLogInput): Promise<AddStoryLogOutput> {
-    const filename = this.safeName(input.filename);
-    const prd = await this.load(filename);
+    return this.mutate(input.filename, (prd) => {
+      const story = findStory(prd, input.storyId);
+      this.assertStoryOwner(story, input.workerId);
+      if (input.workerId && !story.workerId) {
+        throw new Error(`Claim story ${story.id} before logging work.`);
+      }
 
-    const result = appendStoryLog(prd, input.storyId, {
-      at: this.deps.now().toISOString(),
-      whatsNew: input.whatsNew,
-      technicalNotes: input.technicalNotes,
-      ...(input.deviations?.length && { deviations: input.deviations }),
+      const result = appendStoryLog(prd, input.storyId, {
+        at: this.deps.now().toISOString(),
+        whatsNew: input.whatsNew,
+        technicalNotes: input.technicalNotes,
+        ...(input.deviations?.length && { deviations: input.deviations }),
+      });
+
+      appendChangeLog(prd, `Logged work on ${result.story_id}`, this.today());
+      return result;
     });
+  }
 
-    appendChangeLog(prd, `Logged work on ${result.story_id}`, this.today());
-    await this.save(filename, prd);
+  private assertStoryOwner(
+    story: ReturnType<typeof findStory>,
+    workerId?: string,
+  ) {
+    if (story.workerId && story.workerId !== workerId) {
+      throw new Error(`Story ${story.id} is claimed by another worker.`);
+    }
+  }
 
-    return result;
+  private assertStoryStatusUpdate(
+    prd: StructuredPRD,
+    input: UpdateStoryStatusInput,
+  ) {
+    const story = findStory(prd, input.storyId);
+    this.assertStoryOwner(story, input.workerId);
+    assertCanEnterStatus(prd, story, input.status);
+
+    if (input.workerId && !story.workerId) {
+      const canClaim =
+        input.status === 'in_progress' && story.status !== 'completed';
+
+      const canResumeReview =
+        input.status === 'review' && story.status === 'review';
+
+      const canReportBlocker =
+        input.status === 'blocked' &&
+        story.status !== 'completed' &&
+        Boolean(input.notes?.trim());
+
+      if (!canClaim && !canResumeReview && !canReportBlocker) {
+        throw new Error(`Claim story ${story.id} before changing its status.`);
+      }
+    }
+
+    return story;
   }
 
   // Attachments -------------------------------------------------------------
@@ -756,9 +820,10 @@ export class PrdService {
       const folder = attachmentsFolder(filename);
       const path = assertSafeRelativePath(input.path, 'attachment path');
 
-      if (!(await this.deps.fileExists(join(this.prdsDir, folder, path)))) {
+      const fullPath = join(this.prdsDir, folder, path);
+      if (!(await this.deps.fileExists(fullPath))) {
         throw new Error(
-          `File ".prds/${folder}/${path}" not found. Save it in .prds/${folder}/ first.`,
+          `File "${fullPath}" not found. Save it in ${this.prdsPath}/${folder}/ first.`,
         );
       }
     }
@@ -852,7 +917,20 @@ export class PrdService {
     return normalizePrd(parsed, this.today());
   }
 
-  private async save(filename: string, prd: StructuredPRD) {
+  private save(filename: string, prd: StructuredPRD) {
+    const path = join(this.prdsDir, filename);
+    const write = () => this.saveRevision(filename, prd);
+
+    if (this.deps.withWriteLock) {
+      return this.deps.withWriteLock(path, write);
+    }
+
+    const pending = this.pendingWrite.then(write);
+    this.pendingWrite = pending.catch(() => undefined);
+    return pending;
+  }
+
+  private async saveRevision(filename: string, prd: StructuredPRD) {
     const today = this.today();
     const path = join(this.prdsDir, filename);
     const loadedRevision = prd.metadata.revision ?? 0;
@@ -950,6 +1028,7 @@ export function normalizePrd(input: unknown, today: string): StructuredPRD {
     // a newer version keeps them when this one saves it. Known sections below
     // are rebuilt, so unknown keys inside them are not kept.
     ...prd,
+    roadmap: PrdRoadmapSchema.passthrough().optional().parse(prd.roadmap),
     introduction: {
       title: prd.introduction?.title ?? 'Untitled PRD',
       overview: prd.introduction?.overview ?? '',

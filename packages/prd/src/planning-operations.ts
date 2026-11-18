@@ -57,7 +57,22 @@ export function updatePrdSection(
   const value = parsed.data;
   let updated: string[];
 
-  if (input.section === 'risks') {
+  if (input.section === 'roadmap') {
+    const patch =
+      value as (typeof PrdSectionValueSchemas)['roadmap']['_output'];
+    const merged = Object.fromEntries(
+      Object.entries({ ...prd.roadmap, ...patch }).filter(
+        ([key, value]) => !(Object.hasOwn(patch, key) && value == null),
+      ),
+    );
+
+    if (Object.keys(merged).length > 0) {
+      prd.roadmap = merged;
+    } else {
+      delete prd.roadmap;
+    }
+    updated = Object.keys(patch);
+  } else if (input.section === 'risks') {
     const risks = value as (typeof PrdSectionValueSchemas)['risks']['_output'];
     const assigned: StructuredPRD['risks'] = [];
 
@@ -160,6 +175,7 @@ export function updatePrdSection(
   } else {
     const key = input.section as Exclude<
       keyof typeof PrdSectionValueSchemas,
+      | 'roadmap'
       | 'risks'
       | 'dependencies'
       | 'edgeCases'

@@ -96,6 +96,58 @@ const BASE_INPUT = {
 };
 
 describe('PrdService.create / list / get / delete', () => {
+  it('saves, patches, clears and orders optional roadmap metadata', async () => {
+    const { service } = createHarness();
+    const { filename } = await service.create({
+      ...BASE_INPUT,
+      roadmap: { order: 0, criticality: 'low', plan: 'Launch', group: 'Core' },
+    });
+    const { filename: urgent } = await service.create({
+      ...BASE_INPUT,
+      title: 'Urgent PRD',
+      roadmap: { criticality: 'critical', order: 0 },
+    });
+    const { filename: legacy } = await service.create({
+      ...BASE_INPUT,
+      title: 'Another PRD',
+    });
+
+    await service.updatePrdSection({
+      filename,
+      section: 'roadmap',
+      value: { group: null, section: '  First release  ' },
+    });
+    await service.updatePrdSection({
+      filename,
+      section: 'introduction',
+      value: { overview: 'Updated overview' },
+    });
+    expect((await service.get({ filename })).prd.roadmap).toEqual({
+      order: 0,
+      criticality: 'low',
+      plan: 'Launch',
+      section: 'First release',
+    });
+    expect((await service.list()).prds.map((prd) => prd.filename)).toEqual([
+      urgent,
+      filename,
+      legacy,
+    ]);
+    await expect(
+      service.updatePrdSection({
+        filename,
+        section: 'roadmap',
+        value: { order: -1 },
+      }),
+    ).rejects.toThrow('Invalid value for section "roadmap"');
+    await service.updatePrdSection({
+      filename,
+      section: 'roadmap',
+      value: { order: null, criticality: null, plan: null, section: null },
+    });
+    expect((await service.get({ filename })).prd.roadmap).toBeUndefined();
+  });
+
   it('creates a PRD file named after the title and lists it', async () => {
     const { service, files, dirs } = createHarness();
 
@@ -561,9 +613,7 @@ describe('PrdService reports', () => {
     const prompts =
       await service.getImplementationPrompts('notes-feature.json');
     expect(prompts.total).toBe(1);
-    expect(prompts.prompts[0]).toBe(
-      implementStoryPrompt('notes-feature.json', 'US001'),
-    );
+    expect(prompts.prompts[0]).toBe(implementStoryPrompt('notes-feature.json'));
     expect(prompts.prompts[0]).not.toMatch(/Mark the story completed/);
 
     const suggestions =
@@ -576,7 +626,7 @@ describe('PrdService reports', () => {
     expect(status.next_steps).toEqual(['Start: Do X']);
     expect(status.blockers).toEqual([]);
 
-    // A story waiting on an unfinished dependency gets no prompt yet.
+    // Independent ready stories and dependent stories still share one prompt.
     await service.addUserStory({
       filename: 'notes-feature.json',
       userType: 'member',
@@ -585,6 +635,14 @@ describe('PrdService reports', () => {
       acceptanceCriteria: ['one'],
       priority: 'P2',
       dependencies: ['US001'],
+    });
+    await service.addUserStory({
+      filename: 'notes-feature.json',
+      userType: 'member',
+      action: 'do independent work',
+      benefit: 'y',
+      acceptanceCriteria: ['one'],
+      priority: 'P2',
     });
 
     expect(

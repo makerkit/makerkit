@@ -511,6 +511,7 @@ describe('MCP registration', () => {
       .content.text;
 
     expect(text).toContain('What the user wants to build:\n\nA simple CRM');
+    expect(text).toContain('Interview mode: detailed.');
     for (const tool of [
       'create_prd',
       'update_prd_section',
@@ -522,6 +523,15 @@ describe('MCP registration', () => {
     }
     expect(text).toContain('dataModels');
     expect(text).toContain('integrationNeeds');
+
+    const light = prompt!.handler({ filename, mode: 'light' }).messages[0]!
+      .content.text;
+    expect(light).toContain(`Keep shaping the PRD "${filename}"`);
+    expect(light).toContain('Interview mode: light.');
+    expect(light).toContain('built-in question tool');
+    expect(light).toContain('decided edge cases and permissions');
+    expect(light).toContain('Run check_plan after slicing');
+    expect(light).not.toContain('Run a pre-mortem');
   });
 });
 

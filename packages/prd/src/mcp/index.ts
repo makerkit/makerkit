@@ -89,7 +89,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'List PRDs',
       description:
-        'List Product Requirements Documents in .prds with title and story progress.',
+        'List PRDs with story progress and optional roadmap metadata, sorted by order, then criticality.',
       inputSchema: ListPrdsInputSchema,
       outputSchema: ListPrdsOutputSchema,
       annotations: READ_ONLY_TOOL,
@@ -128,7 +128,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Create a PRD',
       description:
-        'Create a new structured PRD in .prds. The file name is derived from the title.',
+        'Create a new structured PRD in the configured directory. The file name is derived from the title.',
       inputSchema: CreatePrdInputSchema,
       outputSchema: CreatePrdOutputSchema,
       annotations: MUTATING_TOOL,
@@ -191,7 +191,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Update story status',
       description:
-        'Update a user story status. Marking a story "completed" runs the project checks (typecheck, lint) first and is rejected if they fail. When completing, recordDeviations records the accepted deviations from the story log as decisions.',
+        'Update a user story status. Pass workerId with "in_progress" to claim a story, or with "review" to claim an existing review. A claimed story requires the same workerId for status and log changes. Completion runs the project checks and can record accepted deviations.',
       inputSchema: UpdateStoryStatusInputSchema,
       outputSchema: UpdateStoryStatusOutputSchema,
       // Re-running "completed" re-executes the checks and rewrites the
@@ -321,7 +321,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Implementation prompts',
       description:
-        'The implement_story instructions for the next unstarted stories, as text to paste into an agent that does not support MCP prompts.',
+        'One autonomous implementation prompt when there is work ready to start, as text to paste into an agent that does not support MCP prompts.',
       inputSchema: GetImplementationPromptsInputSchema,
       outputSchema: GetImplementationPromptsOutputSchema,
       annotations: READ_ONLY_TOOL,
@@ -493,7 +493,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Add an attachment',
       description:
-        "Record a file or link the plan refers to (a mockup, a screenshot, reference docs) and link it to the stories that use it. Save files in the PRD folder, .prds/<prd file name without .json>/, first. get_story returns a story's attachments with their paths.",
+        "Record a file or link the plan refers to (a mockup, a screenshot, reference docs) and link it to the stories that use it. Save files in the folder named after the PRD file beside its JSON first. get_story returns a story's attachments with their paths.",
       inputSchema: AddAttachmentInputSchema,
       outputSchema: AddAttachmentOutputSchema,
       annotations: MUTATING_TOOL,
@@ -756,7 +756,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
     {
       title: 'Shape a PRD',
       description:
-        'Interview the user round by round until the plan is clear, writing each decision into the PRD as it is made, then slice the work into stories and phases.',
+        'Shape a PRD with a detailed interview by default, or choose light to focus on decisions needed to define the stories.',
       argsSchema: {
         overview: z
           .string()
@@ -767,16 +767,20 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
         filename: z
           .string()
           .optional()
-          .describe('Existing PRD to keep shaping, inside .prds'),
+          .describe('Existing PRD to keep shaping, in the PRD directory'),
+        mode: z
+          .enum(['light', 'detailed'])
+          .optional()
+          .describe('Interview depth. Defaults to detailed.'),
       },
     },
-    ({ overview, filename }) => ({
+    ({ overview, filename, mode }) => ({
       messages: [
         {
           role: 'user',
           content: {
             type: 'text',
-            text: shapePrdPrompt(overview, filename),
+            text: shapePrdPrompt(overview, filename, mode, service.prdsPath),
           },
         },
       ],
@@ -790,7 +794,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
       description:
         'Design the shape all stories share (data model, modules, entry points, test seams) before any is built, and record it in the PRD as the contract to build against.',
       argsSchema: {
-        filename: z.string().describe('PRD file name inside .prds'),
+        filename: z.string().describe('PRD file name in the PRD directory'),
       },
     },
     ({ filename }) => ({
@@ -799,7 +803,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
           role: 'user',
           content: {
             type: 'text',
-            text: architectPrdPrompt(filename),
+            text: architectPrdPrompt(filename, service.prdsPath),
           },
         },
       ],
@@ -813,12 +817,14 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
       description:
         'Check the changes made for a story against its acceptance criteria, scope limits and test seams, and report a verdict.',
       argsSchema: {
-        filename: z.string().describe('PRD file name inside .prds'),
+        filename: z.string().describe('PRD file name in the PRD directory'),
         storyId: z.string().describe('Story id such as US003'),
         base: z
           .string()
           .optional()
-          .describe('Git ref the story started from. Defaults to HEAD.'),
+          .describe(
+            'Git ref the story started from. Defaults to the recorded review scope.',
+          ),
       },
     },
     ({ filename, storyId, base }) => ({
@@ -837,24 +843,30 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
   server.registerPrompt(
     'implement_story',
     {
-      title: 'Implement a PRD story',
+      title: 'Implement PRD stories',
       description:
-        'Instructions for implementing one story end to end with the PRD tools.',
+        'Implement, review, and complete ready stories in sequence with the PRD tools.',
       argsSchema: {
-        filename: z.string().describe('PRD file name inside .prds'),
+        filename: z.string().describe('PRD file name in the PRD directory'),
         storyId: z
           .string()
           .optional()
-          .describe('Story id such as US003. Omit to take the next ready one.'),
+          .describe(
+            'Starting story id such as US003. Omit to select work automatically.',
+          ),
+        singleStory: z
+          .boolean()
+          .optional()
+          .describe('Stop after one story. Use this for parallel workers.'),
       },
     },
-    ({ filename, storyId }) => ({
+    ({ filename, storyId, singleStory }) => ({
       messages: [
         {
           role: 'user',
           content: {
             type: 'text',
-            text: implementStoryPrompt(filename, storyId),
+            text: implementStoryPrompt(filename, storyId, singleStory),
           },
         },
       ],

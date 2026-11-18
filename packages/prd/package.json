@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/prd",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Structured PRDs as JSON files: the format, a service to manage them, and MCP tools so coding agents can read and update them.",
   "keywords": [
     "ai-agents",
@@ -27,6 +27,11 @@
       "types": "./node.d.ts",
       "import": "./node.mjs",
       "require": "./node.js"
+    },
+    "./operations": {
+      "types": "./operations.d.ts",
+      "import": "./operations.mjs",
+      "require": "./operations.js"
     },
     "./mcp": {
       "types": "./mcp.d.ts",
