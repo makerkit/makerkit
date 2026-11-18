@@ -22,10 +22,20 @@
       "import": "./index.mjs",
       "require": "./index.js"
     },
+    "./node": {
+      "types": "./node.d.ts",
+      "import": "./node.mjs",
+      "require": "./node.js"
+    },
     "./mcp": {
       "types": "./mcp.d.ts",
       "import": "./mcp.mjs",
       "require": "./mcp.js"
+    },
+    "./testing": {
+      "types": "./testing.d.ts",
+      "import": "./testing.mjs",
+      "require": "./testing.js"
     }
   },
   "publishConfig": {

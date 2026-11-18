@@ -3,5 +3,10 @@ import { defineConfig } from 'tsdown';
 import { libraryConfig } from '../../tsdown.base.mts';
 
 export default defineConfig(
-  libraryConfig({ index: 'src/index.ts', mcp: 'src/mcp.ts' }),
+  libraryConfig({
+    index: 'src/index.ts',
+    node: 'src/node.ts',
+    mcp: 'src/mcp.ts',
+    testing: 'src/testing.ts',
+  }),
 );

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { defineCheck, defineJourney, defineStep, done, todo } from '../define';
-import { NO_LOCKS as freeLocks } from '../locks';
 import { registerJourneyTools } from '../mcp';
+import { NO_LOCKS as freeLocks } from '../run';
 import { createFakeMcpServer } from '../testing/fake-mcp-server';
 
 const SECRET = 'sk_test_supersecretvalue';
@@ -120,7 +120,11 @@ describe('journey tools', () => {
 
   it("lists a journey's form (its save and read tools), and none for the rest", async () => {
     const fake = createFakeMcpServer();
-    const step = defineCheck<object>({ id: 'file', title: 'Details', check: async () => todo('Not yet') });
+    const step = defineCheck<object>({
+      id: 'file',
+      title: 'Details',
+      check: async () => todo('Not yet'),
+    });
 
     registerJourneyTools(fake.server, {
       journeys: [
@@ -131,23 +135,37 @@ describe('journey tools', () => {
           form: { save: 'kit_brand_save', read: 'kit_brand_read' },
           steps: [step],
         }),
-        defineJourney({ id: 'plain', title: 'Plain', command: 'kit:plain', steps: [step] }),
+        defineJourney({
+          id: 'plain',
+          title: 'Plain',
+          command: 'kit:plain',
+          steps: [step],
+        }),
       ],
       depsFor: () => ({}),
       locks: freeLocks,
     });
 
-    const { journeys } = (await fake.call('kit_journeys')).structuredContent as {
+    const { journeys } = (await fake.call('kit_journeys'))
+      .structuredContent as {
       journeys: { id: string; form?: unknown }[];
     };
 
-    expect(journeys[0]!.form).toEqual({ save: 'kit_brand_save', read: 'kit_brand_read' });
+    expect(journeys[0]!.form).toEqual({
+      save: 'kit_brand_save',
+      read: 'kit_brand_read',
+    });
     expect('form' in journeys[1]!).toBe(false);
   });
 
   it("lists a step's input, and none for the rest", async () => {
     const fake = createFakeMcpServer();
-    const input = { env: 'STRIPE_SECRET_KEY', label: 'Stripe test key', secret: true, accept: '^sk_test_' };
+    const input = {
+      env: 'STRIPE_SECRET_KEY',
+      label: 'Stripe test key',
+      secret: true,
+      accept: '^sk_test_',
+    };
 
     registerJourneyTools(fake.server, {
       journeys: [
@@ -156,8 +174,17 @@ describe('journey tools', () => {
           title: 'Billing',
           command: 'billing:setup',
           steps: [
-            defineCheck<object>({ id: 'key', title: 'Key', input, check: async () => todo('missing') }),
-            defineCheck<object>({ id: 'plain', title: 'Plain', check: async () => todo('missing') }),
+            defineCheck<object>({
+              id: 'key',
+              title: 'Key',
+              input,
+              check: async () => todo('missing'),
+            }),
+            defineCheck<object>({
+              id: 'plain',
+              title: 'Plain',
+              check: async () => todo('missing'),
+            }),
           ],
         }),
       ],
@@ -165,7 +192,8 @@ describe('journey tools', () => {
       locks: freeLocks,
     });
 
-    const { journeys } = (await fake.call('kit_journeys')).structuredContent as {
+    const { journeys } = (await fake.call('kit_journeys'))
+      .structuredContent as {
       journeys: { steps: { id: string; input?: unknown }[] }[];
     };
 
@@ -255,5 +283,54 @@ describe('journey tools', () => {
 
     // a prefix only when it ends in `_`
     expect(() => register('mailbox')).not.toThrow();
+  });
+});
+
+describe('journey tool names', () => {
+  it('refuses two journeys that would be one tool', () => {
+    const journeyOf = (id: string) =>
+      defineJourney<null>({
+        id,
+        title: id,
+        command: `kit:${id}`,
+        steps: [
+          defineCheck({ id: 'x', title: 'X', check: async () => done() }),
+        ],
+      });
+
+    expect(() =>
+      registerJourneyTools(createFakeMcpServer().server, {
+        journeys: [journeyOf('a-b'), journeyOf('a_b')],
+        depsFor: () => null,
+        locks: freeLocks,
+      }),
+    ).toThrow('"a-b" and "a_b" would both be kit_a_b');
+  });
+
+  it('lists commands with the runner it is given', async () => {
+    const fake = createFakeMcpServer();
+
+    registerJourneyTools(fake.server, {
+      journeys: [
+        defineJourney<null>({
+          id: 'setup',
+          title: 'Set up',
+          command: 'kit:setup',
+          scope: 'staging',
+          steps: [
+            defineCheck({ id: 'x', title: 'X', check: async () => done() }),
+          ],
+        }),
+      ],
+      depsFor: () => null,
+      locks: freeLocks,
+      runner: 'npm run',
+    });
+
+    const result = await fake.call('kit_journeys');
+
+    expect(result.structuredContent).toMatchObject({
+      journeys: [{ command: 'npm run kit:setup', scope: 'staging' }],
+    });
   });
 });

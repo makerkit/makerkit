@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { HandoffResultSchema, type HandoffResult } from '@makerkit/handoff';
 
+import { runDoctorCli } from '../cli';
 import { defineJourney, defineStep, done, todo, waiting } from '../define';
-import { createDoctorService, runDoctorCli } from '../doctor';
+import { createDoctorService } from '../doctor';
 import { registerKitDoctorTool } from '../mcp';
 import { createFakeMcpServer } from '../testing/fake-mcp-server';
 import type { JourneyScope } from '../types';
@@ -284,5 +285,130 @@ describe('kit_doctor over MCP and runDoctorCli', () => {
       message: 'not running',
     });
     expect(result.summary).toBe('Everything is ready (1 checks).');
+  });
+});
+
+describe('createDoctorService: a journey that throws', () => {
+  const broken = (part: 'deps' | 'secrets' | 'finalize') =>
+    defineJourney<null>({
+      ...billing(),
+      id: 'broken',
+      title: 'Broken',
+      ...(part === 'secrets' && {
+        secrets: () => {
+          throw new Error('no secrets');
+        },
+      }),
+      ...(part === 'finalize' && {
+        finalize: async () => {
+          throw new Error('no summary');
+        },
+      }),
+    });
+
+  it.each(['deps', 'secrets', 'finalize'] as const)(
+    'reports it as one failed step, the others still checked (%s)',
+    async (part) => {
+      const service = createDoctorService({
+        environment: environment(),
+        environmentDeps: async () => null,
+        journeys: [billing(), broken(part)],
+        depsFor: (journey) => {
+          if (part === 'deps' && journey.id === 'broken') {
+            throw new Error('no deps');
+          }
+
+          return null;
+        },
+      });
+      const fake = createFakeMcpServer();
+
+      registerKitDoctorTool(fake.server, service);
+
+      const result = (await fake.call('kit_doctor'))
+        .structuredContent as HandoffResult;
+
+      expect(result.status).toBe('failed');
+      expect(result.steps.map((s) => [s.id, s.state])).toEqual([
+        ['node', 'done'],
+        ['billing.key', 'done'],
+        ['billing.portal', 'waiting'],
+        ['broken.journey', 'failed'],
+      ]);
+      expect(result.steps.at(-1)?.message).toMatch(
+        /^Broken could not be checked: no /,
+      );
+      expect(JSON.stringify(result)).not.toContain(SECRET);
+    },
+  );
+
+  it('reports the environment failing as one failed step', async () => {
+    const service = createDoctorService({
+      environment: environment(),
+      environmentDeps: async () => {
+        throw new Error('no environment');
+      },
+      journeys: [billing()],
+      depsFor: () => null,
+    });
+
+    expect((await run(service)).steps.map((s) => [s.id, s.state])).toEqual([
+      ['journey', 'failed'],
+      ['billing.key', 'done'],
+      ['billing.portal', 'waiting'],
+    ]);
+  });
+});
+
+describe('createDoctorService: scopes of its own', () => {
+  const staging = () =>
+    defineJourney<null>({ ...billing(), id: 'staging', scope: 'staging' });
+
+  it('runs a declared scope (only its journeys) from --<scope> and MCP', async () => {
+    const service = doctor([billing(), staging()]);
+    const { stdout, out } = capture();
+
+    await runDoctorCli(service, ['doctor', '--staging', '--json'], stdout);
+
+    expect(JSON.parse(out.text).steps.map((s: { id: string }) => s.id)).toEqual(
+      ['staging.key', 'staging.portal'],
+    );
+    expect((await run(service, 'staging', 'mcp')).summary).toContain(
+      '1 of 2 checks (staging) need attention.',
+    );
+  });
+
+  it('refuses a scope nothing declares', async () => {
+    expect(
+      (await doctor().run({ scope: 'stagin', surface: 'mcp' })).status,
+    ).toBe('refused');
+  });
+
+  it('writes its own commands with the runner it is given', async () => {
+    const service = createDoctorService({
+      environment: environment('todo'),
+      environmentDeps: async () => null,
+      journeys: [],
+      depsFor: () => null,
+      runner: 'npm run',
+    });
+
+    expect((await run(service, 'launch')).nextSteps[0]?.resumeWith).toBe(
+      'npm run kit:doctor --launch',
+    );
+  });
+});
+
+describe('the secrets of the doctor checks', () => {
+  it('masks a check journey’s secrets too', () => {
+    const service = createDoctorService({
+      environment: environment(),
+      environmentDeps: async () => null,
+      journeys: [],
+      checks: [billing()],
+      depsFor: () => null,
+    });
+
+    expect(service.secrets()).toContain(SECRET);
   });
 });

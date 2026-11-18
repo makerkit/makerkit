@@ -3,7 +3,7 @@
 One result shape for commands and MCP tools that coding agents drive. Every run says:
 
 - **status**: `done`, `failed`, `needs-human` or `refused` (exit codes 0, 1, 2, 3)
-- **steps**: each with a stable `id`, a `state` (`done`, `todo`, `waiting`, `running`, `skipped`, `failed`), who acts (`agent` or `human`), and how to fix it
+- **steps**: each with a stable `id`, a `state` (`done`, `todo`, `waiting`, `running`, `skipped`, `failed`), who acts (`agent` or `human`), and how to fix it; optionally a `journey` (the id of the journey whose form or run fixes it), which older clients ignore
 - **nextSteps**: what happens next, who does it, a link, and `resumeWith`, the command to run once it's done
 - **summary**: plain English, for the agent to relay as is
 

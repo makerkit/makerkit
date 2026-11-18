@@ -9,10 +9,16 @@ import type {
   Answer,
   CheckResult,
   Journey,
+  Locks,
   RunContext,
   RunInput,
   Step,
 } from './types';
+
+// for runs that never write (check, plan): they never take a lock
+export const NO_LOCKS: Locks = {
+  acquire: async () => ({ ok: true, release: async () => undefined }),
+};
 
 /**
  * Runs a journey: checks every step and, in apply mode, applies the ones
@@ -26,10 +32,16 @@ export async function runJourney<D>(
 ): Promise<HandoffResult> {
   const only = input.step;
 
-  if (only && !journey.steps.some((step) => step.id === only)) {
+  if (only !== undefined && !journey.steps.some((step) => step.id === only)) {
+    const ids = journey.steps.map((s) => s.id).join(', ');
+
+    if (only === '') {
+      return refused(journey, `A step needs a step id: one of ${ids}.`);
+    }
+
     return refused(
       journey,
-      `There's no step "${only}" in ${journey.command}: one of ${journey.steps.map((s) => s.id).join(', ')}.`,
+      `There's no step "${only}" in ${journey.command}: one of ${ids}.`,
     );
   }
 
@@ -194,28 +206,32 @@ async function report<D>(
   ctx: RunContext<D>,
 ) {
   // checks change nothing, so they run at once (a step waits only for the
-  // ones it needs); results keep step order
+  // ones it needs, checked even when not shown); results keep step order
   const selected = selectedSteps(journey, input.step);
   const checks = new Map<string, Promise<CheckResult>>();
 
-  for (const step of selected) {
-    checks.set(
-      step.id,
-      (async () => {
-        for (const need of step.needs ?? []) {
-          const before = checks.get(need);
+  const checkOf = (step: Step<D>) => {
+    let found = checks.get(step.id);
 
-          if (before && (await before).state !== 'done') {
+    if (!found) {
+      found = (async () => {
+        for (const need of step.needs ?? []) {
+          const before = journey.steps.find((item) => item.id === need);
+
+          if (before && (await checkOf(before)).state !== 'done') {
             return waitsFor(journey, need);
           }
         }
 
         return checkSafely(step, ctx);
-      })(),
-    );
-  }
+      })();
+      checks.set(step.id, found);
+    }
 
-  const found = await Promise.all(selected.map((s) => checks.get(s.id)!));
+    return found;
+  };
+
+  const found = await Promise.all(selected.map(checkOf));
   const steps: StepResult[] = [];
   const nextSteps: NextStep[] = [];
 
@@ -289,11 +305,20 @@ async function apply<D>(
     }
 
     const targeted = !input.step || input.step === step.id;
-    const unmet = (step.needs ?? []).find((id) => states.get(id) !== 'done');
+    const unmet = await unmetNeed(journey, step, states, ctx);
 
-    if (unmet && states.has(unmet)) {
+    if (unmet) {
       states.set(step.id, 'todo');
       steps.push(resultOf(step, waitsFor(journey, unmet)));
+
+      // one step asked for: it, or an earlier one, can't go on
+      if (input.step) {
+        return result(
+          'refused',
+          `"${step.title}" ${waitsFor(journey, unmet).message}: run \`${commandOf(journey, input)} --step ${unmet}\` first.`,
+        );
+      }
+
       continue;
     }
 
@@ -319,7 +344,7 @@ async function apply<D>(
 
       return result(
         'refused',
-        `"${step.title}" comes first and isn't done: ${sentence(found.fix ?? found.message ?? `run \`pnpm ${journey.command} --step ${step.id}\``)}.`,
+        `"${step.title}" comes first and isn't done: ${sentence(found.fix ?? found.message ?? `run \`${commandOf(journey, input)} --step ${step.id}\``)}.`,
       );
     }
 
@@ -452,6 +477,29 @@ async function apply<D>(
   );
 }
 
+// the first need not done in this run; one left out of it (run only when
+// named) is checked for that
+async function unmetNeed<D>(
+  journey: Journey<D>,
+  step: Step<D>,
+  states: Map<string, CheckResult['state']>,
+  ctx: RunContext<D>,
+) {
+  for (const id of step.needs ?? []) {
+    const needed = journey.steps.find((item) => item.id === id);
+
+    if (needed && !states.has(id)) {
+      states.set(id, (await checkSafely(needed, ctx)).state);
+    }
+
+    if (states.has(id) && states.get(id) !== 'done') {
+      return id;
+    }
+  }
+
+  return undefined;
+}
+
 const idle = new AbortController().signal;
 
 function stepContext<D>(ctx: RunContext<D>) {
@@ -491,7 +539,7 @@ async function confirmStep<D>(
     return { answer: await ctx.prompter.confirm(promptOf(step, found)) };
   }
 
-  const command = `pnpm ${journey.command} --step ${step.id}`;
+  const command = `${commandOf(journey, input)} --step ${step.id}`;
 
   if (level === 'terminal') {
     return {
@@ -564,6 +612,10 @@ function resultOf<D>(
     result.url = found.url;
   }
 
+  if (found.journey) {
+    result.journey = found.journey;
+  }
+
   // a step-level or terminal yes still to give: the question
   const asks =
     step.confirm.level === 'step' || step.confirm.level === 'terminal';
@@ -603,7 +655,7 @@ function resumeOf<D>(
   if (journey.steps.every((item) => !item.apply)) {
     return input.surface === 'mcp'
       ? `${toolNameOf(journey)} {}`
-      : `pnpm ${journey.command}`;
+      : commandOf(journey, input);
   }
 
   if (input.surface === 'mcp') {
@@ -619,7 +671,7 @@ function resumeOf<D>(
     return `${toolNameOf(journey)} ${JSON.stringify(args)}`;
   }
 
-  return `pnpm ${journey.command} --step ${step.id}${confirmed ? ` --confirm ${step.id}` : ' --yes'}`;
+  return `${commandOf(journey, input)} --step ${step.id}${confirmed ? ` --confirm ${step.id}` : ' --yes'}`;
 }
 
 function waitsFor<D>(journey: Journey<D>, id: string): CheckResult {
@@ -631,11 +683,22 @@ function waitsFor<D>(journey: Journey<D>, id: string): CheckResult {
 function applyHint<D>(journey: Journey<D>, input: RunInput) {
   return input.surface === 'mcp'
     ? `Call ${toolNameOf(journey)} with mode apply to make them.`
-    : `Run \`pnpm ${journey.command} --yes\` to make them.`;
+    : `Run \`${commandOf(journey, input)} --yes\` to make them.`;
 }
 
 // a message inside a sentence: its own last period goes
 const sentence = (text: string) => text.replace(/\.$/, '');
+
+export const DEFAULT_RUNNER = 'pnpm';
+
+// what the owner types: the runner, then the journey's script
+export function commandLine(runner: string, command: string) {
+  return `${runner} ${command}`;
+}
+
+function commandOf<D>(journey: Journey<D>, input: RunInput) {
+  return commandLine(input.runner ?? DEFAULT_RUNNER, journey.command);
+}
 
 export function toolNameOf(journey: Pick<Journey<unknown>, 'id'>) {
   return `kit_${journey.id.replace(/-/g, '_')}`;

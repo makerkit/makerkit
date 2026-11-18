@@ -46,3 +46,13 @@ describe('parseCliArgs --check', () => {
     });
   });
 });
+
+describe('parseCliArgs --step without a value', () => {
+  it('never reads the next flag as the step', () => {
+    expect(parseCliArgs(['setup', '--step', '--yes'])).toMatchObject({
+      step: '',
+      yes: true,
+    });
+    expect(parseCliArgs(['setup', '--step']).step).toBe('');
+  });
+});

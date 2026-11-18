@@ -2,7 +2,10 @@ import { z } from 'zod/v4';
 
 import { ActorSchema } from '@makerkit/handoff';
 
-import { CONFIRM_LEVELS, JOURNEY_SCOPES, STEP_KINDS } from './types';
+import { CONFIRM_LEVELS, STEP_KINDS } from './types';
+
+// local, launch, prod or a kit's own (staging)
+const ScopeSchema = z.string().min(1);
 
 export const JourneyToolInputSchema = z.object({
   // check: report, change nothing; plan: what apply would do; apply: run
@@ -22,10 +25,12 @@ export const JourneysListOutputSchema = z.object({
       title: z.string(),
       command: z.string(),
       tool: z.string(),
-      scope: z.enum(JOURNEY_SCOPES),
+      scope: ScopeSchema,
       // its form's data tools (save, and read for what's saved): a client
       // offers the form only when it lists them
-      form: z.object({ save: z.string(), read: z.string().optional() }).optional(),
+      form: z
+        .object({ save: z.string(), read: z.string().optional() })
+        .optional(),
       steps: z.array(
         z.object({
           id: z.string(),
@@ -53,6 +58,12 @@ export const JourneysListOutputSchema = z.object({
 });
 
 export const DoctorInputSchema = z.object({
-  // local (default): this computer; launch: + going live; prod: the live app
-  scope: z.enum(JOURNEY_SCOPES).default('local'),
+  // local (default): this computer; launch: + going live; prod: the live
+  // app; or a scope of the kit's own
+  scope: ScopeSchema.default('local'),
 });
+
+// one journey kit_journeys lists
+export type JourneyInfo = z.infer<
+  typeof JourneysListOutputSchema
+>['journeys'][number];

@@ -35,3 +35,42 @@ describe('the terminal prompter', () => {
     await expect(answer).rejects.toThrow('cancelled');
   });
 });
+
+describe('the terminal prompter: confirm', () => {
+  const tty = () => ({
+    input: new PassThrough() as unknown as NodeJS.ReadStream,
+    output: new PassThrough() as unknown as NodeJS.WriteStream,
+  });
+  const settled = (answer: Promise<unknown>) =>
+    Promise.race([
+      answer,
+      new Promise((resolve) => setTimeout(() => resolve('hung'), 500)),
+    ]);
+
+  it('answers no on Ctrl-C, so the run ends', async () => {
+    const { input, output } = tty();
+    const answer = createTerminalPrompter(input, output).confirm('Seed?');
+
+    input.write('\u0003');
+
+    expect(await settled(answer)).toBe('no');
+  });
+
+  it('answers no when the input closes', async () => {
+    const { input, output } = tty();
+    const answer = createTerminalPrompter(input, output).confirm('Seed?');
+
+    (input as unknown as PassThrough).end();
+
+    expect(await settled(answer)).toBe('no');
+  });
+
+  it('reads yes', async () => {
+    const { input, output } = tty();
+    const answer = createTerminalPrompter(input, output).confirm('Seed?');
+
+    input.write('y\r');
+
+    expect(await settled(answer)).toBe('yes');
+  });
+});

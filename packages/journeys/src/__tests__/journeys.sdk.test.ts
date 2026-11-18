@@ -4,8 +4,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { describe, expect, it } from 'vitest';
 
 import { defineJourney, defineStep, done, todo } from '../define';
-import { NO_LOCKS as freeLocks } from '../locks';
 import { registerJourneyTools } from '../mcp';
+import { NO_LOCKS as freeLocks } from '../run';
 
 // the real SDK: input and output schemas (zod v4, the handoff contract) are
 // accepted and the structured result validates on the client

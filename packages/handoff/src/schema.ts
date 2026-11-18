@@ -37,6 +37,9 @@ export const StepResultSchema = z.object({
   changes: z.array(z.string()).optional(),
   fix: z.string().optional(),
   url: z.url().optional(),
+  // the id of the journey whose form or run fixes this step, when it isn't
+  // the journey the step is in (a client can open it); older clients ignore it
+  journey: z.string().min(1).optional(),
   // set when it runs only after an explicit yes: the question to ask
   confirm: z.string().optional(),
 });

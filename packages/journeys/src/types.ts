@@ -30,6 +30,8 @@ export type CheckResult = {
   changes?: string[];
   fix?: string;
   url?: string;
+  // the id of the journey whose form or run fixes this (a client can open it)
+  journey?: string;
   // how the owner carries on, when it isn't running this step again (a
   // command with values only they have)
   resumeWith?: string;
@@ -80,10 +82,12 @@ export type StepDefinition<D> = {
 export type Step<D> = StepDefinition<D> &
   Required<Pick<StepDefinition<D>, 'actor' | 'confirm'>> & { kind: StepKind };
 
-// local: this computer (default); launch: before going live; prod: the
-// deployed app (kit:doctor --launch / --prod)
+// where a journey runs, a non-empty id. Well known: local, this computer
+// (default); launch, before going live (the doctor's launch adds local);
+// prod, the deployed app. A kit may add its own (staging): the doctor runs
+// it with `--staging` / `scope: 'staging'`
 export const JOURNEY_SCOPES = ['local', 'launch', 'prod'] as const;
-export type JourneyScope = (typeof JOURNEY_SCOPES)[number];
+export type JourneyScope = (typeof JOURNEY_SCOPES)[number] | (string & {});
 
 export type JourneyForm = { save: string; read?: string };
 
@@ -126,9 +130,12 @@ export type RunInput = {
   confirm?: string[];
   // where the run came from: decides how resumeWith is written
   surface: 'cli' | 'mcp';
-  // writes resumeWith instead of `pnpm <command> --step <id> …` (kit:doctor
-  // resumes by running itself again)
+  // writes resumeWith instead of `<runner> <command> --step <id> …`
+  // (kit:doctor resumes by running itself again)
   resume?: (step: { id: string }) => string;
+  // what runs a journey's script in commands it hands out: 'pnpm' (default),
+  // 'npm run', 'yarn', 'bun run'
+  runner?: string;
 };
 
 export type Answer = 'yes' | 'no' | 'skip';

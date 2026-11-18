@@ -1,8 +1,18 @@
 import type { EnvInspectorDeps } from './env-inspector.service';
 import type { EnvInspectorSettings } from './types';
 
+import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { access, readFile, writeFile } from 'node:fs/promises';
+import {
+  access,
+  chmod,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 
 export interface EnvInspectorNodeOptions {
@@ -21,7 +31,7 @@ export function createEnvInspectorDeps(
       return readFile(filePath, 'utf8');
     },
     writeFile(filePath, content) {
-      return writeFile(filePath, content, 'utf8');
+      return writeFileAtomic(filePath, content);
     },
     async fileExists(filePath) {
       try {
@@ -32,6 +42,37 @@ export function createEnvInspectorDeps(
       }
     },
   };
+}
+
+/**
+ * Writes a temp file next to `filePath`, then renames it over the file, so a
+ * reader never sees a half-written file. Keeps the mode of an existing file;
+ * a new file is readable by its owner only.
+ */
+async function writeFileAtomic(filePath: string, content: string) {
+  // a symlinked .env stays a symlink: the file it points to is replaced
+  const target = await realpath(filePath).catch(() => filePath);
+  const mode = await stat(target).then(
+    (stats) => stats.mode & 0o777,
+    () => 0o600,
+  );
+  const temp = path.join(
+    path.dirname(target),
+    `.${path.basename(target)}.${randomBytes(6).toString('hex')}.tmp`,
+  );
+
+  try {
+    await writeFile(temp, content, {
+      encoding: 'utf8',
+      mode: 0o600,
+      flag: 'wx',
+    });
+    await chmod(temp, mode);
+    await rename(temp, target);
+  } catch (error) {
+    await rm(temp, { force: true });
+    throw error;
+  }
 }
 
 export interface FindWorkspaceRootOptions {

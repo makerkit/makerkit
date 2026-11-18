@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { HandoffResultSchema } from '@makerkit/handoff';
 
 import { defineJourney, defineStep, done, todo } from '../define';
-import { NO_LOCKS as freeLocks } from '../locks';
+import { NO_LOCKS as freeLocks } from '../run';
 import { runJourney, stopStep } from '../run';
 import type { ProgressEvent, RunContext, RunInput } from '../types';
 

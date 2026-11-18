@@ -118,6 +118,27 @@ describe('process steps', () => {
     await expect(stepWith(fake, -1).apply?.(ctx)).rejects.toThrow(/not ready/);
   });
 
+  it('stops the process it started when it is not ready in time', async () => {
+    const fake = fakeSystem({ readyAfter: Number.POSITIVE_INFINITY });
+
+    await expect(stepWith(fake, -1).apply?.(ctx)).rejects.toThrow(/not ready/);
+    expect(fake.signals).toEqual([[100, false]]);
+    expect(fake.alive.size).toBe(0);
+    await expect(readFile(join(dir, 'dev-server.json'))).rejects.toThrow();
+  });
+
+  it('keeps the pid file when the late process cannot be stopped', async () => {
+    const fake = fakeSystem({
+      readyAfter: Number.POSITIVE_INFINITY,
+      unkillable: true,
+    });
+
+    await expect(stepWith(fake, -1).apply?.(ctx)).rejects.toThrow(/not ready/);
+    expect(
+      JSON.parse(await readFile(join(dir, 'dev-server.json'), 'utf8')),
+    ).toMatchObject({ pid: 100 });
+  });
+
   it('reports a live but unanswering process as failed with where its output is', async () => {
     const fake = fakeSystem({ readyAfter: Number.POSITIVE_INFINITY });
 

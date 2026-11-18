@@ -62,25 +62,7 @@ type PidFile = {
   boot?: string | null;
 };
 
-/**
- * A step that keeps running (dev server, webhook forwarding): apply()
- * starts it detached and returns once it's healthy, check() is "ours and
- * alive and healthy", stop() ends it. Only a process whose pid file this
- * repo wrote and whose command line still matches is ever signalled: never
- * by port.
- */
-export function defineProcessStep<D>({
-  id,
-  title,
-  spec,
-  healthy,
-  readyLine,
-  processes,
-  confirm = { level: 'run' },
-  readyWithinMs = 60_000,
-  elsewhere,
-  ...rest
-}: {
+export type ProcessStepOptions<D> = {
   id: string;
   title: string;
   spec: (deps: D) => ProcessSpec;
@@ -103,7 +85,27 @@ export function defineProcessStep<D>({
         readyLine: RegExp;
         healthy?: never;
       }
-  )) {
+  );
+
+/**
+ * A step that keeps running (dev server, webhook forwarding): apply()
+ * starts it detached and returns once it's healthy, check() is "ours and
+ * alive and healthy", stop() ends it. Only a process whose pid file this
+ * repo wrote and whose command line still matches is ever signalled: never
+ * by port.
+ */
+export function defineProcessStep<D>({
+  id,
+  title,
+  spec,
+  healthy,
+  readyLine,
+  processes,
+  confirm = { level: 'run' },
+  readyWithinMs = 60_000,
+  elsewhere,
+  ...rest
+}: ProcessStepOptions<D>) {
   // our process answers: the probe, or the ready line since it started
   const answering = async (
     ctx: StepContext<D>,
@@ -198,7 +200,13 @@ export function defineProcessStep<D>({
           return;
         }
 
+        // late: it goes (its pid file too), unless it outlives SIGKILL
         if (Date.now() > deadline) {
+          await end(system, pid).then(
+            () => unlink(pidFileOf(system, id)).catch(() => undefined),
+            () => undefined,
+          );
+
           throw new Error(
             `not ready after ${readyWithinMs / 1000}s; see ${log}`,
           );

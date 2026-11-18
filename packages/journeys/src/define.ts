@@ -37,6 +37,10 @@ export function defineCheck<D>(
 }
 
 export function defineJourney<D>(journey: Journey<D>): Journey<D> {
+  if (journey.scope === '') {
+    throw new Error(`Journey "${journey.id}" has an empty scope.`);
+  }
+
   const ids = journey.steps.map((step) => step.id);
   const repeated = ids.filter((id, index) => ids.indexOf(id) !== index);
 

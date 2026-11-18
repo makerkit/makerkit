@@ -14,15 +14,21 @@ export function createTerminalPrompter(
   return {
     async confirm(question) {
       const rl = createInterface({ input, output, terminal: true });
+      // Ctrl-C or a closed input: no, so the run ends and its locks go
+      const stop = new AbortController();
+
+      rl.once('SIGINT', () => stop.abort());
+      rl.once('close', () => stop.abort());
 
       try {
-        const answer = (
-          await rl.question(`${question} [y]es / [n]o, stop / [s]kip: `)
-        )
-          .trim()
-          .toLowerCase();
+        const answer = await rl.question(
+          `${question} [y]es / [n]o, stop / [s]kip: `,
+          { signal: stop.signal },
+        );
 
-        return answerOf(answer);
+        return answerOf(answer.trim().toLowerCase());
+      } catch {
+        return 'no';
       } finally {
         rl.close();
       }

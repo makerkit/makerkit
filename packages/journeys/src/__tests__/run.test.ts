@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { HandoffResultSchema } from '@makerkit/handoff';
 
 import { defineJourney, defineStep, done, todo, waiting } from '../define';
-import { NO_LOCKS as freeLocks } from '../locks';
+import { NO_LOCKS as freeLocks } from '../run';
 import { runJourney } from '../run';
 import type { Answer, ConfirmLevel, Locks, RunInput } from '../types';
 
@@ -194,6 +194,24 @@ describe('runJourney: apply', () => {
       actor: 'human',
       url: 'https://example.com/portal',
     });
+  });
+});
+
+describe('runJourney: a check names the journey that fixes it', () => {
+  it('carries journey into the step result, and only when set', async () => {
+    const named = defineStep<State>({
+      id: 'name',
+      title: 'Your name',
+      actor: 'human',
+      async check() {
+        return waiting('Not set', { journey: 'brand' });
+      },
+    });
+    const { result } = await run(journeyOf(named, portal), { mode: 'check' });
+
+    expect(result.steps[0]).toMatchObject({ id: 'name', journey: 'brand' });
+    expect(result.steps[1]).toMatchObject({ id: 'portal', state: 'waiting' });
+    expect(result.steps[1]).not.toHaveProperty('journey');
   });
 });
 
@@ -501,6 +519,18 @@ describe('runJourney: steps that wait, named steps, the last word', () => {
     ]);
   });
 
+  it('refuses an empty scope', () => {
+    expect(() =>
+      defineJourney<State>({
+        id: 'setup',
+        title: 'Set up',
+        command: 'kit:setup',
+        scope: '',
+        steps: [stepOf('a')],
+      }),
+    ).toThrow('scope');
+  });
+
   it('refuses a step that needs a later or unknown one', () => {
     expect(() =>
       defineJourney<State>({
@@ -581,5 +611,94 @@ describe('runJourney: steps that wait, named steps, the last word', () => {
     expect(result.account?.id).toBe('acct_1');
     expect(result.summary).toContain('(mine)');
     expect(seen).toEqual(['apply']);
+  });
+});
+
+describe('runJourney: an empty step', () => {
+  it('refuses `step: ""` instead of running every step', async () => {
+    const { result, state } = await run(
+      journeyOf(stepOf('a'), stepOf('b')),
+      { step: '' },
+      { runConfirmed: true },
+    );
+
+    expect(result.status).toBe('refused');
+    expect(result.summary).toContain('needs a step id');
+    expect(state.applied).toEqual([]);
+  });
+});
+
+describe('runJourney: a step that needs one run only when named', () => {
+  const proof = { ...stepOf('proof'), onlyWhenNamed: true };
+  const after = defineStep<State>({
+    ...stepOf('after'),
+    needs: ['proof'],
+  });
+  const journey = journeyOf(stepOf('a'), proof, after);
+
+  it('waits for it in a full run until it is done', async () => {
+    const waits = await run(journey, {}, { runConfirmed: true });
+
+    expect(waits.state.applied).toEqual(['a']);
+    expect(waits.result.steps.at(-1)).toMatchObject({
+      id: 'after',
+      state: 'todo',
+      message: 'waits for "Step proof"',
+    });
+
+    const proven = await run(
+      journey,
+      {},
+      { runConfirmed: true, state: { applied: [], done: new Set(['proof']) } },
+    );
+
+    expect(proven.state.applied).toEqual(['a', 'after']);
+  });
+
+  it('refuses the step that needs it, named on its own, until it is done', async () => {
+    const { result, state } = await run(
+      journey,
+      { step: 'after' },
+      { runConfirmed: true, state: { applied: [], done: new Set(['a']) } },
+    );
+
+    expect(result.status).toBe('refused');
+    expect(result.summary).toContain('pnpm kit:setup --step proof');
+    expect(state.applied).toEqual([]);
+  });
+
+  it('refuses a later named step while an earlier one waits for it', async () => {
+    const { result, state } = await run(
+      journeyOf(stepOf('a'), proof, after, stepOf('z')),
+      { step: 'z' },
+      { runConfirmed: true, state: { applied: [], done: new Set(['a']) } },
+    );
+
+    expect(result.status).toBe('refused');
+    expect(result.summary).toContain('pnpm kit:setup --step proof');
+    expect(state.applied).toEqual([]);
+  });
+
+  it('waits for it when only the step that needs it is checked', async () => {
+    const { result } = await run(journey, { mode: 'check', step: 'after' });
+
+    expect(result.steps).toMatchObject([
+      { id: 'after', state: 'todo', message: 'waits for "Step proof"' },
+    ]);
+  });
+});
+
+describe('runJourney: runner', () => {
+  it('writes commands with the runner it is given (default pnpm)', async () => {
+    const journey = journeyOf(stepOf('a', { level: 'step' }));
+    const pnpm = await run(journey, {}, { prompter: false });
+    const npm = await run(journey, { runner: 'npm run' }, { prompter: false });
+
+    expect(pnpm.result.nextSteps[0]?.resumeWith).toBe(
+      'pnpm kit:setup --step a --confirm a',
+    );
+    expect(npm.result.nextSteps[0]?.resumeWith).toBe(
+      'npm run kit:setup --step a --confirm a',
+    );
   });
 });

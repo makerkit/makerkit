@@ -1,10 +1,18 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
+import type { ToolServer } from '@makerkit/kit-tools/mcp';
+
+type ToolAnnotations = {
+  title?: string;
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+};
 
 /**
- * Minimal stand-in for McpServer used by tool adapter tests. Captures every
+ * Minimal stand-in for an MCP server in tool adapter tests. Captures every
  * registerTool call so tests can assert names, annotations and that the
- * handler's structuredContent satisfies the declared outputSchema.
+ * handler's structuredContent satisfies the declared outputSchema. `S` is
+ * the server type the code under test takes (the SDK's `McpServer`).
  */
 export interface RegisteredTool {
   name: string;
@@ -22,7 +30,7 @@ export interface RegisteredTool {
   ) => Promise<Record<string, unknown>>;
 }
 
-export function createFakeMcpServer() {
+export function createFakeMcpServer<S = ToolServer>() {
   const tools: RegisteredTool[] = [];
 
   const server = {
@@ -40,7 +48,7 @@ export function createFakeMcpServer() {
   };
 
   return {
-    server: server as unknown as McpServer,
+    server: server as unknown as S,
     tools,
     tool(name: string) {
       const tool = tools.find((item) => item.name === name);

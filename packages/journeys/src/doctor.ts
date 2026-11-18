@@ -1,9 +1,16 @@
 import type { HandoffResult } from '@makerkit/handoff';
-import { finish } from '@makerkit/handoff/node';
 
-import { NO_LOCKS } from './locks';
-import { handoff, refused, runJourney, statusOf, toolNameOf } from './run';
-import type { Journey, JourneyScope } from './types';
+import {
+  commandLine,
+  DEFAULT_RUNNER,
+  handoff,
+  NO_LOCKS,
+  refused,
+  runJourney,
+  statusOf,
+  toolNameOf,
+} from './run';
+import { JOURNEY_SCOPES, type Journey, type JourneyScope } from './types';
 
 type Surface = 'cli' | 'mcp';
 
@@ -17,14 +24,29 @@ export type DoctorDeps<D, E> = {
   // owner steps resume by running the doctor again
   checks?: Journey<D>[];
   depsFor: (journey: Journey<D>) => D;
+  // what runs the doctor's script in the commands it hands out (default pnpm)
+  runner?: string;
 };
 
-// local: this computer; launch: + what going live needs; prod: the
-// deployed app only (the local setup doesn't matter there)
-const SCOPES: Record<JourneyScope, JourneyScope[]> = {
-  local: ['local'],
-  launch: ['local', 'launch'],
-  prod: ['prod'],
+export type DoctorService = {
+  run(input: {
+    scope?: JourneyScope;
+    surface: Surface;
+  }): Promise<HandoffResult>;
+  // every journey's secrets, masked from a result
+  secrets(): string[];
+  // the scopes it runs: the well-known ones and every journey's own
+  scopes(): JourneyScope[];
+};
+
+// launch: + what going live needs; any other scope (local, prod, a kit's
+// own like staging) only its own journeys
+const coveredBy = (scope: JourneyScope) => {
+  if (scope === 'launch') {
+    return ['local', 'launch'];
+  }
+
+  return [scope];
 };
 
 /**
@@ -33,8 +55,10 @@ const SCOPES: Record<JourneyScope, JourneyScope[]> = {
  * browser), then each journey in scope in its check mode: what's done,
  * what's left, who does it and how. CLI and MCP get the same result.
  */
-export function createDoctorService<D, E>(deps: DoctorDeps<D, E>) {
-  const { environment } = deps;
+export function createDoctorService<D, E>(
+  deps: DoctorDeps<D, E>,
+): DoctorService {
+  const { environment, runner = DEFAULT_RUNNER } = deps;
   const { id, secrets } = environment;
 
   // the tool is kit_doctor and its owner steps resume with it
@@ -51,19 +75,38 @@ export function createDoctorService<D, E>(deps: DoctorDeps<D, E>) {
     );
   }
 
+  const all = [environment, ...deps.journeys, ...(deps.checks ?? [])];
+  const scopes = [
+    ...new Set([
+      ...JOURNEY_SCOPES,
+      ...all.map((item) => item.scope ?? 'local'),
+    ]),
+  ];
+
   return {
-    async run({
-      scope = 'local',
-      surface,
-    }: {
-      scope?: JourneyScope;
-      surface: Surface;
-    }) {
+    scopes: () => scopes,
+    async run({ scope = 'local', surface }) {
+      if (!scopes.includes(scope)) {
+        return refused(
+          environment,
+          `There's no scope "${scope}": one of ${scopes.join(', ')}.`,
+        );
+      }
+
       // the doctor's own checks resume by running it again
-      const rerun = () => rerunCommand(environment, scope, surface);
+      const rerun = () =>
+        rerunCommand({ doctor: environment, scope, surface, runner });
+      // its secrets are read up front: a journey whose secrets can't be
+      // masked shows none of its steps
       const journey = (item: Journey<D>, resume?: () => string) => ({
         journey: item as Journey<unknown>,
-        deps: async () => deps.depsFor(item) as unknown,
+        deps: async () => {
+          const loaded = deps.depsFor(item);
+
+          item.secrets?.(loaded);
+
+          return loaded as unknown;
+        },
         prefix: `${item.id}.`,
         resume,
       });
@@ -77,31 +120,53 @@ export function createDoctorService<D, E>(deps: DoctorDeps<D, E>) {
         ...deps.journeys.map((item) => journey(item)),
         ...(deps.checks ?? []).map((item) => journey(item, rerun)),
       ].filter((entry) =>
-        SCOPES[scope].includes(entry.journey.scope ?? 'local'),
+        coveredBy(scope).includes(entry.journey.scope ?? 'local'),
       );
 
+      // one journey that throws is one failed step; the others still report
       const parts = await Promise.all(
-        entries.map(async ({ journey, deps: load, resume, prefix }) => ({
-          prefix,
-          result: await runJourney(
-            journey,
-            { mode: 'check', surface, resume },
-            { deps: await load(), locks: NO_LOCKS, runConfirmed: false },
-          ),
-        })),
+        entries.map(async ({ journey, deps: load, resume, prefix }) => {
+          try {
+            const result = await runJourney(
+              journey,
+              { mode: 'check', surface, resume, runner },
+              { deps: await load(), locks: NO_LOCKS, runConfirmed: false },
+            );
+
+            return { prefix, result };
+          } catch (error) {
+            return { prefix, result: brokenOf(journey, error) };
+          }
+        }),
       );
 
       return merge(parts, scope, environment);
     },
     secrets() {
-      return deps.journeys.flatMap(
-        (journey) => journey.secrets?.(deps.depsFor(journey)) ?? [],
-      );
+      return [...deps.journeys, ...(deps.checks ?? [])].flatMap((journey) => {
+        try {
+          return journey.secrets?.(deps.depsFor(journey)) ?? [];
+        } catch {
+          return [];
+        }
+      });
     },
   };
 }
 
-export type DoctorService = ReturnType<typeof createDoctorService>;
+function brokenOf(journey: Journey<unknown>, error: unknown) {
+  const reason = error instanceof Error ? error.message : String(error);
+
+  return handoff(journey, 'failed', '', [
+    {
+      id: 'journey',
+      title: journey.title,
+      actor: 'agent',
+      state: 'failed',
+      message: `${journey.title} could not be checked: ${reason}`,
+    },
+  ]);
+}
 
 function merge(
   parts: { prefix: string; result: HandoffResult }[],
@@ -149,41 +214,22 @@ function merge(
   return handoff(doctor, status, summary.join(' '), steps, nextSteps);
 }
 
-function rerunCommand(
-  doctor: Pick<Journey<unknown>, 'id' | 'command'>,
-  scope: JourneyScope,
-  surface: Surface,
-) {
-  return surface === 'mcp'
-    ? `${toolNameOf(doctor)} ${JSON.stringify(scope === 'local' ? {} : { scope })}`
-    : `pnpm ${doctor.command}${scope === 'local' ? '' : ` --${scope}`}`;
-}
-
-// `pnpm <doctor command> [--launch | --prod] [--json]`: the same result in a terminal
-export async function runDoctorCli(
-  service: DoctorService,
-  argv: string[],
-  stdout?: Parameters<typeof finish>[0]['stdout'],
-) {
-  const json = argv.includes('--json');
-  const scopes = (['launch', 'prod'] as const).filter((s) =>
-    argv.includes(`--${s}`),
-  );
-  if (scopes.length > 1) {
-    const result = refused(
-      undefined,
-      "Pick one of --launch or --prod: they don't go together.",
-    );
-
-    finish({ result, json, secrets: [], stdout });
-
-    return;
+function rerunCommand({
+  doctor,
+  scope,
+  surface,
+  runner,
+}: {
+  doctor: Pick<Journey<unknown>, 'id' | 'command'>;
+  scope: JourneyScope;
+  surface: Surface;
+  runner: string;
+}) {
+  if (surface === 'mcp') {
+    return `${toolNameOf(doctor)} ${JSON.stringify(scope === 'local' ? {} : { scope })}`;
   }
 
-  const result = await service.run({
-    scope: scopes[0] ?? 'local',
-    surface: 'cli',
-  });
+  const command = commandLine(runner, doctor.command);
 
-  finish({ result, json, secrets: service.secrets(), stdout });
+  return scope === 'local' ? command : `${command} --${scope}`;
 }

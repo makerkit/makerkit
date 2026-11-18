@@ -1,5 +1,6 @@
 import { finish } from '@makerkit/handoff/node';
 
+import type { DoctorService } from './doctor';
 import { refused, runJourney, stopStep } from './run';
 import type {
   Journey,
@@ -39,7 +40,15 @@ export function parseCliArgs(argv: string[]): CliArgs {
     const arg = argv[index]!;
 
     if (arg === '--step') {
-      args.step = argv[++index] ?? '';
+      const value = argv[index + 1];
+
+      // a missing value stays empty (refused), never the next flag
+      if (value === undefined || value.startsWith('--')) {
+        args.step = '';
+      } else {
+        args.step = value;
+        index++;
+      }
     } else if (arg === '--confirm') {
       args.confirm.push(...(argv[++index] ?? '').split(',').filter(Boolean));
     } else if (arg === '--check' || arg === '--plan' || arg === '--stop') {
@@ -71,6 +80,7 @@ export async function runCli<D>({
   signal,
   onProgress = printProgress,
   commands = {},
+  runner,
 }: {
   journeys: Journey<D>[];
   argv: string[];
@@ -83,6 +93,8 @@ export async function runCli<D>({
   onProgress?: (event: ProgressEvent) => void;
   // commands that aren't journeys (doctor), by name
   commands?: Record<string, (argv: string[]) => Promise<void>>;
+  // what runs a journey's script in the commands it hands out (default pnpm)
+  runner?: string;
 }) {
   const args = parseCliArgs(argv);
   const command = args.journey ? commands[args.journey] : undefined;
@@ -148,6 +160,7 @@ export async function runCli<D>({
     step: args.step,
     confirm: args.confirm,
     surface: 'cli',
+    runner,
   };
 
   const result =
@@ -161,4 +174,35 @@ export async function runCli<D>({
 // stderr, so --json keeps stdout to one JSON document
 function printProgress({ title, index, total }: ProgressEvent) {
   process.stderr.write(`… [${index + 1}/${total}] ${title}\n`);
+}
+
+// `<runner> <doctor command> [--<scope>] [--json]`: the same result in a
+// terminal; any scope the doctor runs is a flag (--launch, --prod, --staging)
+export async function runDoctorCli(
+  service: DoctorService,
+  argv: string[],
+  stdout?: Parameters<typeof finish>[0]['stdout'],
+) {
+  const json = argv.includes('--json');
+  const scopes = service
+    .scopes()
+    .filter((scope) => scope !== 'local' && argv.includes(`--${scope}`));
+
+  if (scopes.length > 1) {
+    const result = refused(
+      undefined,
+      `Pick one of --${scopes.join(' or --')}: they don't go together.`,
+    );
+
+    finish({ result, json, secrets: [], stdout });
+
+    return;
+  }
+
+  const result = await service.run({
+    scope: scopes[0] ?? 'local',
+    surface: 'cli',
+  });
+
+  finish({ result, json, secrets: service.secrets(), stdout });
 }

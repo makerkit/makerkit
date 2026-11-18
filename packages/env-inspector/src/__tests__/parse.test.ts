@@ -20,7 +20,8 @@ describe('parseEnvFile', () => {
       { key: 'B', value: 'quoted value', source: '.env', line: 4 },
       { key: 'C', value: 'single', source: '.env', line: 5 },
       { key: 'D', value: 'exported', source: '.env', line: 6 },
-      { key: 'E', value: 'say "hi"', source: '.env', line: 7 },
+      // unquoted values are literal, as dotenv reads them
+      { key: 'E', value: 'say \\"hi\\"', source: '.env', line: 7 },
       { key: 'F', value: '', source: '.env', line: 8 },
     ]);
   });

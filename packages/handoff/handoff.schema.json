@@ -67,6 +67,10 @@
             "type": "string",
             "format": "uri"
           },
+          "journey": {
+            "type": "string",
+            "minLength": 1
+          },
           "confirm": {
             "type": "string"
           }

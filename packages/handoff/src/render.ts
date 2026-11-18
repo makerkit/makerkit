@@ -9,6 +9,11 @@ export function mask(value: string | undefined) {
   const prefix =
     /^(sk|rk|pk|whsec|price)_(test_|live_)?/.exec(value)?.[0] ?? '';
 
+  // a short secret's last four would give most of it away
+  if (value.length - prefix.length < 12) {
+    return `${prefix}…`;
+  }
+
   return `${prefix}…${value.slice(-4)}`;
 }
 

@@ -65,6 +65,31 @@ describe('HandoffResultSchema', () => {
     expect(parsed.steps[1]?.actor).toBe('human');
   });
 
+  it('accepts the journey that fixes a step, and keeps it optional', () => {
+    const withJourney = {
+      ...result,
+      steps: [
+        { id: 'name', title: 'Name', state: 'waiting', journey: 'brand' },
+      ],
+    } as HandoffResult;
+
+    expect(HandoffResultSchema.parse(withJourney).steps[0]?.journey).toBe(
+      'brand',
+    );
+    expect(HandoffResultSchema.parse(result).steps[0]).not.toHaveProperty(
+      'journey',
+    );
+    expect(
+      HandoffResultSchema.safeParse({
+        ...result,
+        steps: [{ id: 'x', title: 'X', state: 'todo', journey: '' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      (handoffJsonSchema() as any).properties.steps.items.properties.journey,
+    ).toEqual({ type: 'string', minLength: 1 });
+  });
+
   it('refuses an unknown status, state or actor', () => {
     expect(
       HandoffResultSchema.safeParse({ ...result, status: 'ok' }).success,
@@ -120,6 +145,11 @@ describe('masking', () => {
     expect(mask(SECRET)).toBe('sk_test_…mnop');
     expect(mask('whsec_abcdef123456')).toBe('whsec_…3456');
     expect(mask(undefined)).toBe('(empty)');
+  });
+
+  it('shows no characters of a short value', () => {
+    expect(mask('hunter2')).toBe('…');
+    expect(mask('sk_test_abc12')).toBe('sk_test_…');
   });
 
   it('scrubs known secrets from every field, however they got there', () => {

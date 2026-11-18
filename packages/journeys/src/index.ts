@@ -7,22 +7,17 @@ export {
   todo,
   waiting,
 } from './define';
-export { createFileLocks, NO_LOCKS } from './locks';
-export { createSystemProcesses, defineProcessStep } from './process';
-export type { ProcessInfo, Processes, ProcessSpec } from './process';
 export {
+  DEFAULT_RUNNER,
   handoff,
+  NO_LOCKS,
   refused,
   runJourney,
-  statusOf,
   stopStep,
   toolNameOf,
 } from './run';
-export { parseCliArgs, runCli, type CliArgs } from './cli';
-export { createTerminalPrompter } from './prompter';
 export {
   createDoctorService,
-  runDoctorCli,
   type DoctorDeps,
   type DoctorService,
 } from './doctor';
@@ -31,5 +26,7 @@ export {
   JourneyToolInputSchema,
   JourneysListInputSchema,
   JourneysListOutputSchema,
+  type JourneyInfo,
 } from './schema';
+export { JOURNEY_SCOPES } from './types';
 export type * from './types';

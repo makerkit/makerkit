@@ -9,6 +9,7 @@ import {
 } from './env-files';
 import { setEnvValue } from './parse';
 import {
+  EnvInspectorError,
   REDACTED,
   createSecretMatcher,
   isPlaceholder,
@@ -16,8 +17,8 @@ import {
   restoreRedactedContent,
   scrubValues,
 } from './redact';
-import { isDependencySatisfied } from './resolve';
-import { getEnvState } from './scanner';
+import { isDependencySatisfied, processEnvDefinitions } from './resolve';
+import { getEnvState, scanEnvFiles } from './scanner';
 import type {
   EnvRawReadOutput,
   EnvRawWriteOutput,
@@ -153,29 +154,60 @@ export class EnvInspectorService {
    * `revealValues` is set.
    */
   async read(mode: EnvMode = this.defaultMode, app?: string) {
+    this.assertMode(mode);
+
     const target = this.resolveApp(app);
-    const [state] = await this.loadStates(mode, [target]);
-    const variables = state?.variables ?? {};
-
-    const allVariables = Object.fromEntries(
-      Object.values(variables).map((variable) => [
-        variable.key,
-        variable.effectiveValue,
-      ]),
-    );
-
-    const output: EnvReadOutput = {
+    const [info] = await scanEnvFiles({
+      rootPath: this.deps.rootPath,
       mode,
-      app: target.name,
-      variables: Object.fromEntries(
-        Object.entries(variables).map(([key, variable]) => [
-          key,
-          this.toReadVariable(variable, allVariables),
-        ]),
-      ),
-    };
+      apps: [target],
+      envFiles: this.envFiles,
+      fs: {
+        readFile: (filePath) => this.deps.readFile(filePath),
+        fileExists: (filePath) => this.deps.fileExists(filePath),
+      },
+    });
+    // every secret value of the app, kept out of messages (validators and
+    // conditions run on real values and may echo any of them)
+    const secretValues = this.revealValues
+      ? []
+      : (info?.variables ?? [])
+          .filter((definition) => this.isSecret(definition.key))
+          .map((definition) => definition.value);
 
-    return output;
+    try {
+      const state = info
+        ? processEnvDefinitions(info, mode, {
+            model: this.model,
+            envFiles: this.envFiles,
+          })
+        : undefined;
+      const variables = state?.variables ?? {};
+
+      const allVariables = Object.fromEntries(
+        Object.values(variables).map((variable) => [
+          variable.key,
+          variable.effectiveValue,
+        ]),
+      );
+
+      const output: EnvReadOutput = {
+        mode,
+        app: target.name,
+        variables: Object.fromEntries(
+          Object.entries(variables).map(([key, variable]) => [
+            key,
+            this.toReadVariable({ variable, allVariables, secretValues }),
+          ]),
+        ),
+      };
+
+      return output;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      throw new Error(scrubValues(message, secretValues));
+    }
   }
 
   /**
@@ -185,13 +217,17 @@ export class EnvInspectorService {
    */
   async update(input: EnvUpdateInput): Promise<EnvUpdateOutput> {
     if (!input.key || typeof input.value !== 'string') {
-      throw new Error('Both key and value are required for env_update');
+      throw new Error('Both key and value are required');
     }
 
     // A value copied from a redacted read would replace the real secret.
     if (!this.revealValues && isPlaceholder(input.value)) {
-      throw new Error(
-        `${REDACTED} is not a value. Pass the real value of ${input.key}, or use env_raw_write, which keeps the current value of lines set to ${REDACTED}.`,
+      throw new EnvInspectorError(
+        `${REDACTED} is not a value. Pass the real value of ${input.key}.`,
+        {
+          tool: 'env_raw_write',
+          text: `Or use {tool}, which keeps the current value of lines set to ${REDACTED}.`,
+        },
       );
     }
 
@@ -297,19 +333,18 @@ export class EnvInspectorService {
     });
   }
 
-  private toReadVariable(
-    variable: EnvVariableState,
-    allVariables: Record<string, string>,
-  ): EnvReadVariable {
+  private toReadVariable(input: {
+    variable: EnvVariableState;
+    allVariables: Record<string, string>;
+    secretValues: readonly string[];
+  }): EnvReadVariable {
+    const { variable, allVariables, secretValues } = input;
     const model = this.models.get(variable.key);
     const redact =
       !this.revealValues &&
       this.isSecret(variable.key) &&
       variable.definitions.some((def) => def.value !== '');
 
-    const secretValues = redact
-      ? variable.definitions.map((def) => def.value)
-      : [];
     const show = (value: string) => (redact && value ? REDACTED : value);
 
     return {
@@ -343,7 +378,12 @@ export class EnvInspectorService {
     // Unknown variables go to the secret (gitignored) file to be safe.
     const secret = this.models.get(key)?.secret ?? true;
 
-    return getWriteTarget(this.writeTargets, mode, secret);
+    return getWriteTarget({
+      targets: this.writeTargets,
+      files: this.envFiles[mode] ?? [],
+      mode,
+      secret,
+    });
   }
 
   private resolveApp(name?: string) {

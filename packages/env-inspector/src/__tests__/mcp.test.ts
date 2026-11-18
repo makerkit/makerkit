@@ -219,3 +219,56 @@ describe('registerEnvInspectorTools', () => {
     expect(JSON.stringify(badFile.content)).toContain('env_raw_read failed');
   });
 });
+
+describe('error messages name the registered tools', () => {
+  function register(options: Parameters<typeof registerEnvInspectorTools>[2]) {
+    const { deps } = createMemoryDeps(
+      { [`${WEB_DIR}/.env.local`]: 'A=1\n' },
+      { apps: WEB_APP },
+    );
+    const fake = createFakeMcpServer();
+
+    registerEnvInspectorTools(
+      fake.server,
+      createEnvInspectorService(deps),
+      options,
+    );
+
+    return fake;
+  }
+
+  const messageOf = (result: Record<string, unknown>) =>
+    (result.structuredContent as { error: { message: string } }).error.message;
+
+  it('suggests the prefixed raw write tool', async () => {
+    const fake = register({ prefix: 'kit_' });
+    const result = await fake.call('kit_env_update', {
+      key: 'A',
+      value: '[REDACTED]',
+    });
+
+    expect(messageOf(result)).toContain('kit_env_raw_write');
+    expect(messageOf(result)).not.toMatch(/(^|[^_])env_raw_write/);
+  });
+
+  it('does not suggest an omitted tool', async () => {
+    const fake = register({ prefix: 'kit_', omit: ['env_raw_write'] });
+    const result = await fake.call('kit_env_update', {
+      key: 'A',
+      value: '[REDACTED]',
+    });
+
+    expect(messageOf(result)).toContain('[REDACTED] is not a value');
+    expect(messageOf(result)).not.toContain('env_raw_write');
+  });
+
+  it('names the prefixed update tool when a placeholder has no value', async () => {
+    const fake = register({ prefix: 'kit_' });
+    const result = await fake.call('kit_env_raw_write', {
+      file: '.env.local',
+      content: 'NEW=[REDACTED]',
+    });
+
+    expect(messageOf(result)).toContain('Set its value with kit_env_update');
+  });
+});

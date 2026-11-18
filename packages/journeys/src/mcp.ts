@@ -8,7 +8,13 @@ import {
 } from '@makerkit/kit-tools/mcp';
 
 import type { DoctorService } from './doctor';
-import { runJourney, stopStep, toolNameOf } from './run';
+import {
+  commandLine,
+  DEFAULT_RUNNER,
+  runJourney,
+  stopStep,
+  toolNameOf,
+} from './run';
 import {
   DoctorInputSchema,
   JourneyToolInputSchema,
@@ -24,6 +30,8 @@ export type JourneyToolsDeps<D> = {
   // the kit's own data tools beyond @makerkit/kit-tools' (exact names, or
   // a prefix ending in `_`, like `kit_env_`)
   reserved?: string[];
+  // what runs a journey's script in the commands it hands out (default pnpm)
+  runner?: string;
 };
 
 // the data tools' names (kit-tools) and this package's own: a name, or a
@@ -47,8 +55,20 @@ export function registerJourneyTools<D>(
   server: ToolServer,
   deps: JourneyToolsDeps<D>,
 ) {
+  const { runner = DEFAULT_RUNNER } = deps;
+  const named = new Map<string, string>();
+
   for (const journey of deps.journeys) {
     const name = toolNameOf(journey);
+    const taken = named.get(name);
+
+    if (taken !== undefined) {
+      throw new Error(
+        `Journeys "${taken}" and "${journey.id}" would both be ${name}: rename one.`,
+      );
+    }
+
+    named.set(name, journey.id);
 
     // a journey can't take a data tool's name (those may be allowed
     // without asking, a journey writes)
@@ -98,7 +118,7 @@ export function registerJourneyTools<D>(
         } else {
           result = await runJourney(
             journey,
-            { mode, step, confirm, surface: 'mcp' },
+            { mode, step, confirm, surface: 'mcp', runner },
             ctx,
           );
         }
@@ -124,7 +144,7 @@ export function registerJourneyTools<D>(
       const journeys = deps.journeys.map((journey) => ({
         id: journey.id,
         title: journey.title,
-        command: `pnpm ${journey.command}`,
+        command: commandLine(runner, journey.command),
         tool: toolNameOf(journey),
         scope: journey.scope ?? 'local',
         ...(journey.form && { form: journey.form }),
@@ -193,6 +213,7 @@ export function registerKitDoctorTool(
     checks?: string;
   } = {},
 ) {
+  const scopes = service.scopes().join(', ');
   const answer = (scope: JourneyScope) =>
     service
       .run({ scope, surface: 'mcp' })
@@ -206,7 +227,7 @@ export function registerKitDoctorTool(
   server.registerTool(
     'kit_doctor',
     {
-      description: `Checks everything and changes nothing: ${checks}, then every journey in scope. Each step says who acts (agent or human) and the fix. Relay nextSteps with actor human to the owner; fix agent steps with the command named. scope: local (default), launch, prod.`,
+      description: `Checks everything and changes nothing: ${checks}, then every journey in scope. Each step says who acts (agent or human) and the fix. Relay nextSteps with actor human to the owner; fix agent steps with the command named. scope: one of ${scopes} (default local).`,
       inputSchema: DoctorInputSchema,
       outputSchema: HandoffResultSchema,
       annotations: READ_ONLY_TOOL,

@@ -16,6 +16,7 @@ import {
   READ_ONLY_TOOL,
   buildErrorResponse,
   buildStructuredResponse,
+  toErrorMessage,
 } from './tool-response';
 
 // any server with McpServer's registerTool, without the SDK's types: works
@@ -61,6 +62,18 @@ export function registerEnvInspectorTools(
 ) {
   const name = (tool: string) => `${options.prefix ?? ''}${tool}`;
   const keep = (tool: EnvInspectorToolName) => !options.omit?.includes(tool);
+  // suggests another tool by its registered name, and only when registered
+  const fail = (tool: EnvInspectorToolName, error: unknown) => {
+    const hint = hintOf(error);
+
+    if (hint && keep(hint.tool)) {
+      const message = `${toErrorMessage(error)} ${hint.text.replace('{tool}', name(hint.tool))}`;
+
+      return buildErrorResponse(name(tool), new Error(message));
+    }
+
+    return buildErrorResponse(name(tool), error);
+  };
 
   const inputs = createEnvInputSchemas({
     modes: service.modes,
@@ -88,7 +101,7 @@ export function registerEnvInspectorTools(
         try {
           return buildStructuredResponse(await service.getSchema());
         } catch (error) {
-          return buildErrorResponse(name('env_schema'), error);
+          return fail('env_schema', error);
         }
       },
     );
@@ -115,7 +128,7 @@ export function registerEnvInspectorTools(
             await service.read(parsed.mode, parsed.app),
           );
         } catch (error) {
-          return buildErrorResponse(name('env_read'), error);
+          return fail('env_read', error);
         }
       },
     );
@@ -140,7 +153,7 @@ export function registerEnvInspectorTools(
             await service.update(inputs.update.parse(input)),
           );
         } catch (error) {
-          return buildErrorResponse(name('env_update'), error);
+          return fail('env_update', error);
         }
       },
     );
@@ -164,7 +177,7 @@ export function registerEnvInspectorTools(
             await service.rawRead(parsed.file, parsed.app),
           );
         } catch (error) {
-          return buildErrorResponse(name('env_raw_read'), error);
+          return fail('env_raw_read', error);
         }
       },
     );
@@ -192,9 +205,24 @@ export function registerEnvInspectorTools(
             await service.rawWrite(parsed.file, parsed.content, parsed.app),
           );
         } catch (error) {
-          return buildErrorResponse(name('env_raw_write'), error);
+          return fail('env_raw_write', error);
         }
       },
     );
   }
+}
+
+// duck-typed: each entry point bundles its own copy of EnvInspectorError
+function hintOf(error: unknown) {
+  if (!(error instanceof Error) || !('hint' in error)) {
+    return undefined;
+  }
+
+  const hint = error.hint as { tool?: unknown; text?: unknown } | undefined;
+
+  if (typeof hint?.tool !== 'string' || typeof hint.text !== 'string') {
+    return undefined;
+  }
+
+  return { tool: hint.tool as EnvInspectorToolName, text: hint.text };
 }
