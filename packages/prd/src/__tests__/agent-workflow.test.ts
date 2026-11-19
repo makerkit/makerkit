@@ -123,6 +123,24 @@ describe('story workflow', () => {
     ).rejects.toThrow(/depends on US001/);
   });
 
+  it('says a person approves a dependency waiting in review', async () => {
+    const { filename, service } = await seed();
+
+    await service.updateStoryStatus({
+      filename,
+      storyId: 'US001',
+      status: 'review',
+    });
+
+    await expect(
+      service.updateStoryStatus({
+        filename,
+        storyId: 'US002',
+        status: 'in_progress',
+      }),
+    ).rejects.toThrow(/US001 is in review.*approve US001/);
+  });
+
   it('still allows planning or parking a waiting story', async () => {
     const { filename, service } = await seed();
 

@@ -4,6 +4,7 @@ import { z } from 'zod/v4';
 import {
   KIT_TOOL_SCHEMAS,
   KitDbSeedInputSchema,
+  KitDbStatusOutputSchema,
   KitStatusOutputSchema,
   checkKitToolsContract,
 } from '../index';
@@ -47,6 +48,21 @@ describe('schemas', () => {
     expect(JSON.stringify(z.toJSONSchema(KitStatusOutputSchema))).not.toMatch(
       /supabase/i,
     );
+  });
+
+  it('db status can name applied migrations that no longer have a file', () => {
+    const migrations = { applied: 2, pending: 0, pending_names: [] };
+    const status = { connected: true, tool: 'void', migrations };
+
+    expect(KitDbStatusOutputSchema.parse(status).migrations).toEqual(
+      migrations,
+    );
+    expect(
+      KitDbStatusOutputSchema.parse({
+        ...status,
+        migrations: { ...migrations, unknown_names: ['0002_old'] },
+      }).migrations.unknown_names,
+    ).toEqual(['0002_old']);
   });
 
   it('seed only runs with confirm: true (false by default)', () => {

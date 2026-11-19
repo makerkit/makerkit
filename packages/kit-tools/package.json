@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/kit-tools",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "The data tools every Makerkit kit's MCP server registers (kit_status, kit_prerequisites, kit_db_*, kit_dev_*, kit_mailbox_status): one schema each across kits, and a contract test.",
   "keywords": [
     "ai-agents",

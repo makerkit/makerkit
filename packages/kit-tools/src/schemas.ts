@@ -68,6 +68,9 @@ const MigrationsSchema = z.object({
   applied: z.number(),
   pending: z.number(),
   pending_names: z.array(z.string()),
+  // applied to the database but no longer in the repo (a migration deleted or
+  // regenerated after it ran locally): the next migrate fails until a reset
+  unknown_names: z.array(z.string()).optional(),
 });
 
 export const KitDbStatusInputSchema = z.object({});

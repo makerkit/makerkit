@@ -397,6 +397,9 @@ describe('prompts', () => {
     expect(implementStoryPrompt('notes.json', 'US001')).toMatch(
       /Open the files and links in its attachments/,
     );
+    expect(implementStoryPrompt('notes.json', 'US001')).toMatch(
+      /no "Architecture" attachment[^.]*architecture\.md[^.]*add_attachment/,
+    );
     expect(shapePrdPrompt('A CRM')).toContain('add_attachment');
     expect(shapePrdPrompt('A CRM')).toContain('PRD text may use Markdown');
   });

@@ -618,9 +618,25 @@ export function assertCanEnterStatus(
 
   if (waitingOn.length > 0) {
     throw new Error(
-      `Cannot move ${story.id} to ${status}: it depends on ${waitingOn.join(', ')}, which ${waitingOn.length === 1 ? 'is' : 'are'} not completed yet.`,
+      `Cannot move ${story.id} to ${status}: it depends on ${waitingOn.join(', ')}, which ${waitingOn.length === 1 ? 'is' : 'are'} not completed yet.${approvalHint(prd, waitingOn)}`,
     );
   }
+}
+
+// a story in review waits for a person, not for more work: say who and how
+function approvalHint(prd: StructuredPRD, ids: string[]) {
+  const inReview = ids.filter(
+    (id) =>
+      prd.userStories.find((story) => story.id === id)?.status === 'review',
+  );
+
+  if (inReview.length === 0) {
+    return '';
+  }
+
+  const list = inReview.join(', ');
+
+  return ` ${list} ${inReview.length === 1 ? 'is' : 'are'} in review: a person approves ${inReview.length === 1 ? 'it' : 'them'}. Ask the user in one line to approve ${list} (in the PRD tool, or by replying "approve ${list}"); a reply about anything else is not an approval.`;
 }
 
 /** Position of the story's phase; stories without a phase come last. */
