@@ -47,6 +47,7 @@ export function addAttachment(
   appendChangeLog(prd, `Added attachment ${id} (${input.title})`, today);
 
   return {
+    id,
     attachment_id: id,
     path: path ? attachmentProjectPath(input.filename, path) : null,
     stories_updated: stories.map((story) => story.id),

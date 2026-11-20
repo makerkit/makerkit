@@ -123,6 +123,7 @@ describe('attachments', () => {
     });
 
     expect(result).toEqual({
+      id: 'ATT001',
       attachment_id: 'ATT001',
       path: '.prds/notes/mockups/editor.png',
       stories_updated: ['US001'],

@@ -7,7 +7,7 @@ import type {
 } from './types';
 
 import { execFileSync, spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import {
   mkdir,
   open,
@@ -343,7 +343,7 @@ export function createSystemProcesses(dir: string): Processes {
       }
     },
     isAlive: isProcessAlive,
-    groupAlive: (pid) => isProcessAlive(-pid),
+    groupAlive: isGroupAlive,
     boot: bootId,
     inspect: inspectProcess,
     signal(pid, force) {
@@ -420,12 +420,66 @@ export function bootId() {
   return boot || null;
 }
 
-export function isProcessAlive(pid: number) {
-  try {
-    process.kill(pid, 0);
+// a process that exited but wasn't reaped (state Z, or X) still answers
+// signal 0; it is gone for everything that matters
+function isDefunct(pid: number) {
+  if (pid <= 0 || process.platform !== 'linux') {
+    return false;
+  }
 
-    return true;
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+
+    return /^[ZX]/.test(stat.slice(stat.lastIndexOf(')') + 2));
+  } catch {
+    return false;
+  }
+}
+
+// the state letter of a Linux process and the group it leads or belongs to
+function statOf(pid: number | string) {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const [state, , pgrp] = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+
+    return { state, pgrp: Number(pgrp) };
+  } catch {
+    return null;
+  }
+}
+
+/** Whether any live member is left in the process group led by `pgid`. */
+export function isGroupAlive(pgid: number) {
+  try {
+    process.kill(-pgid, 0);
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
+
+  if (process.platform !== 'linux') {
+    return true;
+  }
+
+  try {
+    // only unreaped zombies left: nothing is running
+    return readdirSync('/proc')
+      .filter((name) => /^\d+$/.test(name))
+      .some((name) => {
+        const stat = statOf(name);
+
+        return stat?.pgrp === pgid && !/^[ZX]/.test(stat.state ?? '');
+      });
+  } catch {
+    return true;
+  }
+}
+
+export function isProcessAlive(pid: number) {
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+
+  return !isDefunct(pid);
 }

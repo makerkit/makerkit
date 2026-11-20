@@ -855,18 +855,31 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
             'Starting story id such as US003. Omit to select work automatically.',
           ),
         singleStory: z
-          .boolean()
+          .enum(['true', 'false'])
           .optional()
-          .describe('Stop after one story. Use this for parallel workers.'),
+          .describe(
+            '"true" stops after one story. Use this for parallel workers.',
+          ),
+        ownerReview: z
+          .enum(['true', 'false'])
+          .optional()
+          .describe(
+            '"true" leaves each story in review until the owner approves it. Defaults to completing stories and continuing.',
+          ),
       },
     },
-    ({ filename, storyId, singleStory }) => ({
+    ({ filename, storyId, singleStory, ownerReview }) => ({
       messages: [
         {
           role: 'user',
           content: {
             type: 'text',
-            text: implementStoryPrompt(filename, storyId, singleStory),
+            text: implementStoryPrompt(
+              filename,
+              storyId,
+              singleStory === 'true',
+              ownerReview === 'true',
+            ),
           },
         },
       ],

@@ -63,6 +63,14 @@ describe('templates', () => {
     }
   });
 
+  it('scopes SaaS access on the server, without assuming row-level security', () => {
+    const saas = PRD_TEMPLATES.find((template) => template.id === 'saas-feature');
+    const standards = saas!.defaults.qualityStandards!.join(' ');
+
+    expect(standards).not.toMatch(/row-level/i);
+    expect(standards).toContain('inside their transaction');
+  });
+
   it('fills empty sections from the template', async () => {
     const files: Record<string, string> = {};
     const service = createPrdService(createDeps(files));

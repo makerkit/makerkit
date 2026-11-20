@@ -275,6 +275,19 @@ describe('PrdService stories', () => {
     return { ...harness, story };
   }
 
+  it('returns each new record under id', async () => {
+    const { service, story } = await withStory();
+    const created = await service.createCustomPhase({
+      filename: 'notes-feature.json',
+      name: 'Milestone 1',
+      description: '',
+      color: '#4f46e5',
+    });
+
+    expect(story).toMatchObject({ id: 'US001', story_id: 'US001' });
+    expect(created.id).toBe(created.phase.id);
+  });
+
   it('adds a story with a proof per criterion, checked before it is saved', async () => {
     const harness = createHarness();
     await harness.service.create(BASE_INPUT);
@@ -315,6 +328,7 @@ describe('PrdService stories', () => {
     const { story, files } = await withStory();
 
     expect(story).toEqual({
+      id: 'US001',
       story_id: 'US001',
       title: 'Create A Note Quickly',
       complexity: 'S',

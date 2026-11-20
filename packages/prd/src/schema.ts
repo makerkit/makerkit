@@ -211,6 +211,8 @@ export const AddUserStoryInputSchema = z.object({
 });
 
 export const AddUserStoryOutputSchema = z.object({
+  /** The new record's id, under the same name in every create result. */
+  id: z.string(),
   story_id: z.string(),
   title: z.string(),
   complexity: z.enum(['XS', 'S', 'M', 'L', 'XL']),
@@ -363,6 +365,8 @@ export const CustomPhaseSchema = z.object({
 });
 
 export const CreateCustomPhaseOutputSchema = z.object({
+  /** The new record's id, under the same name in every create result. */
+  id: z.string(),
   phase: CustomPhaseSchema,
   total_phases: z.number().int().min(0),
 });
@@ -713,6 +717,40 @@ const PRD_SECTIONS = Object.keys(PrdSectionValueSchemas) as [
   ...PrdSection[],
 ];
 
+const EACH_LIST = '(each a string array)';
+
+/** The shape of each section's `value`, for the tool description and errors. */
+export const PrdSectionValueHints: Record<PrdSection, string> = {
+  roadmap: '{ order?, criticality?, plan?, group?, section? } (null clears one)',
+  introduction: '{ title?, overview? }',
+  problemStatement: '{ problem?, marketOpportunity?, targetUsers?: string[] }',
+  solutionOverview:
+    '{ description?, keyFeatures?: string[], successMetrics?: string[] }',
+  nonGoals: 'string[]',
+  outOfScope: 'string[]',
+  assumptions: 'string[]',
+  openQuestions:
+    '[{ id?, question, why?, options?: string[], recommended?, storyIds?: string[] } or a string]',
+  technicalRequirements: `{ constraints?, integrationNeeds?, complianceRequirements? } ${EACH_LIST}`,
+  technicalContracts: `{ apis?, dataModels?, permissions?, integrationBoundaries? } ${EACH_LIST}`,
+  acceptanceCriteria: `{ global?, qualityStandards? } ${EACH_LIST}`,
+  constraints:
+    '{ timeline?, budget?, resources?: string[], nonNegotiables?: string[] }',
+  rolloutPlan: `{ featureFlags?, migrationPlan?, rolloutPhases?, rollbackConditions? } ${EACH_LIST}`,
+  measurementPlan: `{ events?, dashboards?, baselineMetrics?, targetMetrics?, guardrailMetrics? } ${EACH_LIST}`,
+  risks:
+    '[{ id?, description, mitigation, owner, severity: "low" | "medium" | "high" }]',
+  dependencies: '[{ id?, name, description, blocking: boolean, owner? }]',
+  edgeCases:
+    '[{ id?, case, expectedBehavior, status: "open" | "decided", storyIds?: string[] }]',
+  designGuidance: 'string[]',
+  securityConsiderations: 'string[]',
+};
+
+const SECTION_VALUE_LIST = Object.entries(PrdSectionValueHints)
+  .map(([section, hint]) => `${section}: ${hint}`)
+  .join('; ');
+
 export const UpdatePrdSectionInputSchema = z.object({
   filename: FilenameSchema,
   section: z.enum(PRD_SECTIONS),
@@ -727,7 +765,8 @@ export const UpdatePrdSectionInputSchema = z.object({
   value: z
     .unknown()
     .describe(
-      'roadmap takes a partial object with order, criticality, plan, group and section. Pass null to clear a field. Object sections (introduction, problemStatement, solutionOverview, technicalRequirements, technicalContracts, acceptanceCriteria, constraints, rolloutPlan, measurementPlan) take an object and only the keys given change. List sections (nonGoals, outOfScope, assumptions, designGuidance, securityConsiderations) take a string array and replace the list. openQuestions takes an array of { question, why, options, recommended, storyIds } (a plain string is accepted too) and replaces the list; keep the ids of existing questions. risks, dependencies and edgeCases take an array of items and replace the list; items without an id get one. An edge case is { case, expectedBehavior, status: "open" | "decided", storyIds? }; a decided one needs expectedBehavior, and storyIds must name existing stories.',
+      'roadmap takes a partial object with order, criticality, plan, group and section. Pass null to clear a field. Object sections (introduction, problemStatement, solutionOverview, technicalRequirements, technicalContracts, acceptanceCriteria, constraints, rolloutPlan, measurementPlan) take an object and only the keys given change. List sections (nonGoals, outOfScope, assumptions, designGuidance, securityConsiderations) take a string array and replace the list. openQuestions takes an array of { question, why, options, recommended, storyIds } (a plain string is accepted too) and replaces the list; keep the ids of existing questions. risks, dependencies and edgeCases take an array of items and replace the list; items without an id get one. A decided edge case needs expectedBehavior, and storyIds must name existing stories. Accepted value per section (? marks an optional key): ' +
+        SECTION_VALUE_LIST,
     ),
 });
 
@@ -793,6 +832,8 @@ export const AddDecisionInputSchema = z.object({
 });
 
 export const AddDecisionOutputSchema = z.object({
+  /** The new record's id, under the same name in every create result. */
+  id: z.string(),
   decision_id: z.string(),
   superseded: z.string().nullable(),
   total_decisions: z.number().int().min(1),
@@ -837,6 +878,8 @@ export const AddAttachmentInputSchema = z.object({
 });
 
 export const AddAttachmentOutputSchema = z.object({
+  /** The new record's id, under the same name in every create result. */
+  id: z.string(),
   attachment_id: z.string(),
   /** The file relative to the project root, or null for a link. */
   path: z.string().nullable(),

@@ -1,11 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import type { ZodTypeAny } from 'zod/v3';
+import { type ZodRawShape, type ZodTypeAny, z } from 'zod/v3';
 
 /**
  * Minimal stand-in for McpServer used by tool adapter tests. Captures every
  * registerTool call so tests can assert names, annotations and that the
- * handler's structuredContent satisfies the declared outputSchema.
+ * handler's structuredContent satisfies the declared outputSchema. Prompt
+ * arguments are parsed with the prompt's argsSchema, as the real server does.
  */
 export interface RegisteredTool {
   name: string;
@@ -41,10 +42,12 @@ export function createFakeMcpServer() {
     },
     registerPrompt(
       name: string,
-      _config: unknown,
+      config: { argsSchema?: ZodRawShape },
       handler: RegisteredPrompt['handler'],
     ) {
-      prompts.push({ name, handler });
+      const args = z.object(config.argsSchema ?? {});
+
+      prompts.push({ name, handler: (input) => handler(args.parse(input)) });
       return {};
     },
   };

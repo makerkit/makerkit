@@ -47,12 +47,12 @@ export const PRD_TEMPLATES: readonly PrdTemplate[] = [
         'Is it limited by billing plan, and what happens when a limit is reached?',
       ],
       globalAcceptanceCriteria: [
-        'Members of one account cannot read or change another account’s data, including through the database API directly.',
+        'Members of one account cannot read or change another account’s data, including by calling the server or API directly.',
         'Every action respects the role permissions agreed in this PRD.',
         'Empty, loading and error states are handled on every new screen.',
       ],
       qualityStandards: [
-        'Access rules are enforced in the database (e.g. row-level security), not only in the UI.',
+        'Access rules are enforced on the server for every read and write, not only in the UI: each query is scoped to the acting account, and writes that check other rows first recheck permissions inside their transaction, using the project’s documented helpers.',
         'New database changes ship as migrations with tests for the access rules.',
       ],
       technicalConstraints: [

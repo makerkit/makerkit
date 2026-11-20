@@ -420,6 +420,7 @@ export class PrdService {
     await this.save(filename, prd);
 
     return {
+      id: storyId,
       story_id: storyId,
       title,
       complexity,

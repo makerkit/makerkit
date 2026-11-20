@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod/v3';
 
 import { registerPRDTools } from '../mcp';
 import {
@@ -6,6 +7,11 @@ import {
   PrdRevisionConflictError,
   createPrdService,
 } from '../prd.service';
+import {
+  type PrdSection,
+  PrdSectionValueHints,
+  PrdSectionValueSchemas,
+} from '../schema';
 import { createFakeMcpServer } from '../testing/fake-mcp-server';
 import type { StructuredPRD } from '../types';
 
@@ -145,6 +151,39 @@ describe('update_prd_section', () => {
         value: { deadline: 'Friday' },
       }),
     ).rejects.toThrow(/Unrecognized key/);
+
+    await expect(
+      service.updatePrdSection({
+        filename,
+        section: 'problemStatement',
+        value: { description: 'Context gets lost' },
+      }),
+    ).rejects.toThrow(
+      'Expected { problem?, marketOpportunity?, targetUsers?: string[] }',
+    );
+  });
+
+  it('names every key a section accepts in its value hint', () => {
+    for (const [section, schema] of Object.entries(PrdSectionValueSchemas)) {
+      let shape: z.ZodTypeAny = schema;
+
+      if (shape instanceof z.ZodArray) {
+        shape = shape.element;
+      }
+
+      if (shape instanceof z.ZodEffects) {
+        shape = shape.innerType();
+      }
+
+      if (shape instanceof z.ZodObject) {
+        for (const key of Object.keys(shape.shape)) {
+          expect(
+            PrdSectionValueHints[section as PrdSection],
+            `${section}.${key}`,
+          ).toMatch(new RegExp(`\\b${key}\\b`));
+        }
+      }
+    }
   });
 
   it('applies the change when expectedRevision matches the PRD', async () => {
@@ -211,6 +250,7 @@ describe('decisions and open questions', () => {
     });
 
     expect(second).toEqual({
+      id: 'DEC002',
       decision_id: 'DEC002',
       superseded: 'DEC001',
       total_decisions: 2,

@@ -7,6 +7,7 @@ import {
   type AddGlossaryTermOutput,
   type DeletePhaseInput,
   type PhasesOutput,
+  PrdSectionValueHints,
   PrdSectionValueSchemas,
   type ReorderPhasesInput,
   type DecideEdgeCaseInput,
@@ -51,7 +52,9 @@ export function updatePrdSection(
       .map((issue) => `${issue.path.join('.') || 'value'}: ${issue.message}`)
       .join('; ');
 
-    throw new Error(`Invalid value for section "${input.section}": ${issues}`);
+    throw new Error(
+      `Invalid value for section "${input.section}": ${issues}. Expected ${PrdSectionValueHints[input.section]}.`,
+    );
   }
 
   const value = parsed.data;
@@ -235,6 +238,7 @@ export function addDecision(
   );
 
   return {
+    id,
     decision_id: id,
     superseded,
     total_decisions: prd.decisionLog.length,

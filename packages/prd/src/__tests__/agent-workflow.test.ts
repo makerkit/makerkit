@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { registerPRDTools } from '../mcp';
 import { type PrdDeps, createPrdService } from '../prd.service';
-import { implementStoryPrompt, shapePrdPrompt } from '../prompts';
+import {
+  architectPrdPrompt,
+  implementStoryPrompt,
+  reviewStoryPrompt,
+  shapePrdPrompt,
+} from '../prompts';
 import { createFakeMcpServer } from '../testing/fake-mcp-server';
 import type { StructuredPRD } from '../types';
 
@@ -385,10 +390,19 @@ describe('MCP registration', () => {
     expect(implementStoryPrompt(filename, 'US003')).toContain(
       'Start with story US003.',
     );
-    const singleStory = prompt!.handler({ filename, singleStory: true })
+    const singleStory = prompt!.handler({ filename, singleStory: 'true' })
       .messages[0]!.content.text;
     expect(singleStory).toContain('Handle one story');
     expect(singleStory).not.toContain('Repeat the story selection');
+    expect(
+      prompt!.handler({ filename, singleStory: 'false' }).messages[0]!.content
+        .text,
+    ).toContain('Repeat the story selection');
+    expect(text).toContain('Owner-review mode is off');
+    const ownerReview = prompt!.handler({ filename, ownerReview: 'true' })
+      .messages[0]!.content.text;
+    expect(ownerReview).toContain('Owner-review mode is on');
+    expect(ownerReview).toContain('leave the story in "review"');
     expect(text).not.toContain('run_checks');
 
     const review = fake.prompts.find((entry) => entry.name === 'review_story');
@@ -431,5 +445,27 @@ describe('MCP registration', () => {
       /"Architecture" attachment is the contract/,
     );
     expect(shapePrdPrompt('A CRM')).toContain('architect_prd');
+    expect(shapePrdPrompt('A CRM')).toContain(
+      'resolve each default question the overview',
+    );
+  });
+
+  it('holds every mode to the checks the project documents', () => {
+    const shape = shapePrdPrompt('A booking app');
+    const architect = architectPrdPrompt('booking.json');
+    const review = reviewStoryPrompt('booking.json', 'US001');
+    const implement = implementStoryPrompt('booking.json');
+
+    for (const text of [shape, review, implement]) {
+      expect(text).toContain('AGENTS.md or CLAUDE.md verification steps');
+    }
+
+    expect(shape).toContain('two connections');
+    expect(shape).toContain('lists growing far past one page');
+    expect(architect).toContain('inside their own transaction');
+    expect(architect).toContain('how every list pages');
+    expect(review).toContain('fails when the lock or recheck is removed');
+    expect(review).toContain('the write must recheck at commit');
+    expect(implement).toContain('recheck them inside the transaction');
   });
 });

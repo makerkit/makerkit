@@ -3,9 +3,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createSystemProcesses,
   defineProcessStep,
+  isGroupAlive,
+  isProcessAlive,
   type Processes,
 } from '../process';
 
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -352,4 +356,47 @@ describe('process steps ready by a log line', () => {
 
     expect((await step.check(ctx)).state).toBe('done');
   });
+});
+
+describe('isProcessAlive', () => {
+  it.skipIf(process.platform !== 'linux')(
+    'treats an exited, unreaped child as gone',
+    async () => {
+      // `sleep` replaces the shell and never reaps `true`: a zombie
+      const parent = spawn('sh', ['-c', 'true & echo $!; exec sleep 5'], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      const [chunk] = (await once(parent.stdout, 'data')) as [Buffer];
+      const zombie = Number(chunk.toString().trim());
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      expect(process.kill(zombie, 0)).toBe(true);
+      expect(isProcessAlive(parent.pid as number)).toBe(true);
+      expect(isProcessAlive(zombie)).toBe(false);
+
+      parent.kill();
+    },
+  );
+
+  it.skipIf(process.platform !== 'linux')(
+    'treats a group with only a zombie leader as gone',
+    async () => {
+      // the leader exits unreaped, in a group of its own
+      const parent = spawn(
+        'sh',
+        ['-c', 'setsid true & echo $!; exec sleep 5'],
+        { stdio: ['ignore', 'pipe', 'ignore'] },
+      );
+      const [chunk] = (await once(parent.stdout, 'data')) as [Buffer];
+      const leader = Number(chunk.toString().trim());
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      expect(() => process.kill(-leader, 0)).not.toThrow();
+      expect(isGroupAlive(leader)).toBe(false);
+
+      parent.kill();
+    },
+  );
 });

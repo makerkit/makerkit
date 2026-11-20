@@ -522,6 +522,7 @@ export function createPhase(
   appendChangeLog(prd, `Created phase ${phase.id} (${name})`, today);
 
   return {
+    id: phase.id,
     phase: {
       id: phase.id,
       name: phase.name,
