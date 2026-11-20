@@ -4,7 +4,12 @@
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["done", "failed", "needs-human", "refused"]
+      "enum": [
+        "done",
+        "failed",
+        "needs-human",
+        "refused"
+      ]
     },
     "journey": {
       "type": "string"
@@ -27,7 +32,11 @@
           "type": "string"
         }
       },
-      "required": ["provider", "id", "name"]
+      "required": [
+        "provider",
+        "id",
+        "name"
+      ]
     },
     "steps": {
       "type": "array",
@@ -44,12 +53,22 @@
           },
           "state": {
             "type": "string",
-            "enum": ["done", "todo", "waiting", "running", "skipped", "failed"]
+            "enum": [
+              "done",
+              "todo",
+              "waiting",
+              "running",
+              "skipped",
+              "failed"
+            ]
           },
           "actor": {
             "default": "agent",
             "type": "string",
-            "enum": ["agent", "human"]
+            "enum": [
+              "agent",
+              "human"
+            ]
           },
           "message": {
             "type": "string"
@@ -75,7 +94,11 @@
             "type": "string"
           }
         },
-        "required": ["id", "title", "state"]
+        "required": [
+          "id",
+          "title",
+          "state"
+        ]
       }
     },
     "nextSteps": {
@@ -85,7 +108,10 @@
         "properties": {
           "actor": {
             "type": "string",
-            "enum": ["agent", "human"]
+            "enum": [
+              "agent",
+              "human"
+            ]
           },
           "instructions": {
             "type": "string",
@@ -99,13 +125,26 @@
             "type": "string"
           }
         },
-        "required": ["actor", "instructions"]
+        "required": [
+          "actor",
+          "instructions"
+        ]
       }
+    },
+    "remaining": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
     },
     "summary": {
       "type": "string",
       "minLength": 1
     }
   },
-  "required": ["status", "steps", "nextSteps", "summary"]
+  "required": [
+    "status",
+    "steps",
+    "nextSteps",
+    "summary"
+  ]
 }

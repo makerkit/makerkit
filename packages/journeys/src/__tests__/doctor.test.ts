@@ -97,6 +97,7 @@ describe('createDoctorService', () => {
     ]);
     expect(result.summary).toContain('1 of 3 checks need attention');
     expect(result.summary).toContain('Nothing was changed.');
+    expect(result.remaining).toBe(1);
   });
 
   it('resumes the environment with the doctor itself, on each surface', async () => {
@@ -285,6 +286,7 @@ describe('kit_doctor over MCP and runDoctorCli', () => {
       message: 'not running',
     });
     expect(result.summary).toBe('Everything is ready (1 checks).');
+    expect(result.remaining).toBe(0);
   });
 });
 

@@ -264,7 +264,10 @@ async function report<D>(
         ? `${journey.title}: ${pending} of ${counted.length} steps to do, nothing changed yet. ${applyHint(journey, input)}`
         : `${journey.title}: ${pending} of ${counted.length} steps need attention (below).`;
 
-  return handoff(journey, status, summary, steps, nextSteps);
+  return {
+    ...handoff(journey, status, summary, steps, nextSteps),
+    remaining: pending,
+  };
 }
 
 async function apply<D>(

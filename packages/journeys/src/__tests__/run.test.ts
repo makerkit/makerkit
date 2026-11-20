@@ -113,6 +113,8 @@ describe('runJourney: check and plan', () => {
       ['b', 'todo'],
     ]);
     expect(result.summary).toContain('nothing changed');
+    // nothing failed and nobody's needed, but the work isn't finished
+    expect(result).toMatchObject({ status: 'done', remaining: 2 });
   });
 
   it('turns a waiting human step into a next step with its link and resume command', async () => {

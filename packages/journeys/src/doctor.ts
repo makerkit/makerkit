@@ -183,19 +183,24 @@ function merge(
   const forOwner = open.filter((step) => step.actor === 'human').length;
   const forAgent = open.length - forOwner;
   const checked = `${counted.length} checks${scope === 'local' ? '' : ` (${scope})`}`;
-  const status = statusOf(steps, nextSteps);
 
-  if (open.length === 0) {
-    return handoff(
-      doctor,
-      status,
-      `Everything is ready (${checked}).`,
-      steps,
-      nextSteps,
-    );
+  const status = statusOf(steps, nextSteps);
+  const remaining = open.length;
+
+  if (remaining === 0) {
+    return {
+      ...handoff(
+        doctor,
+        status,
+        `Everything is ready (${checked}).`,
+        steps,
+        nextSteps,
+      ),
+      remaining,
+    };
   }
 
-  const summary = [`${open.length} of ${checked} need attention.`];
+  const summary = [`${remaining} of ${checked} need attention.`];
 
   if (forOwner > 0) {
     summary.push(
@@ -211,7 +216,10 @@ function merge(
 
   summary.push('Nothing was changed.');
 
-  return handoff(doctor, status, summary.join(' '), steps, nextSteps);
+  return {
+    ...handoff(doctor, status, summary.join(' '), steps, nextSteps),
+    remaining,
+  };
 }
 
 function rerunCommand({

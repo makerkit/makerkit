@@ -1,6 +1,6 @@
 {
   "name": "@makerkit/handoff",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "One result shape for commands and MCP tools that coding agents drive: status and exit code, steps, who acts next (agent or human) and how to resume, with secrets masked.",
   "keywords": [
     "ai-agents",

@@ -66,6 +66,9 @@ export const HandoffResultSchema = z.object({
   account: AccountSchema.optional(),
   steps: z.array(StepResultSchema),
   nextSteps: z.array(NextStepSchema),
+  // check, plan and doctor: steps not done yet (skipped ones aside), so a
+  // `done` that still has work is told apart from a finished one (0)
+  remaining: z.number().int().nonnegative().optional(),
   // plain English, for the agent to relay as is
   summary: z.string().min(1),
 });
