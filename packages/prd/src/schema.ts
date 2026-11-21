@@ -6,7 +6,9 @@ import type { StructuredPRD, UserStory } from './types';
 const FilenameSchema = z
   .string()
   .min(1)
-  .describe('PRD file name in the PRD directory, e.g. notes-feature.json');
+  .describe(
+    'PRD file name in the PRD directory, e.g. notes-feature.json (the .json may be left out)',
+  );
 
 export const StoryStatusSchema = z.enum([
   'not_started',
@@ -916,29 +918,33 @@ export const RemoveAttachmentOutputSchema = z.object({
   total_attachments: z.number().int().min(0),
 });
 
-export const ResolveOpenQuestionInputSchema = z
-  .object({
-    filename: FilenameSchema,
-    questionId: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('The question id, e.g. Q003'),
-    question: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('The question text, exactly as listed (when there is no id)'),
-    answer: z.string().min(1),
-    recordDecision: z
-      .boolean()
-      .default(true)
-      .describe('Also add the answer to the decision log'),
-    expectedRevision: ExpectedRevisionSchema,
-  })
-  .refine((input) => input.questionId || input.question, {
-    message: 'Pass questionId or question',
-  });
+// the object MCP clients discover (the SDK can't read a refined schema's
+// shape and would publish `{}`); handlers parse ResolveOpenQuestionInputSchema
+export const ResolveOpenQuestionInputShape = z.object({
+  filename: FilenameSchema,
+  questionId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The question id, e.g. Q003'),
+  question: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The question text, exactly as listed (when there is no id)'),
+  answer: z.string().min(1),
+  recordDecision: z
+    .boolean()
+    .default(true)
+    .describe('Also add the answer to the decision log'),
+  expectedRevision: ExpectedRevisionSchema,
+});
+
+export const ResolveOpenQuestionInputSchema =
+  ResolveOpenQuestionInputShape.refine(
+    (input) => input.questionId || input.question,
+    { message: 'Pass questionId or question' },
+  );
 
 export const DecideEdgeCaseInputSchema = z.object({
   filename: FilenameSchema,

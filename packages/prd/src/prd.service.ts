@@ -349,7 +349,9 @@ export class PrdService {
       await this.deps.unlink(join(this.prdsDir, filename));
     } catch (error) {
       if (isErrnoCode(error, 'ENOENT')) {
-        throw new Error(`PRD file "${filename}" not found`);
+        throw new Error(
+          `PRD file "${filename}" not found (list_prds names the PRDs)`,
+        );
       }
 
       throw error;
@@ -904,7 +906,9 @@ export class PrdService {
     try {
       raw = await this.deps.readFile(join(this.prdsDir, name));
     } catch {
-      throw new Error(`PRD file "${name}" not found`);
+      throw new Error(
+        `PRD file "${name}" not found (list_prds names the PRDs)`,
+      );
     }
 
     let parsed: unknown;
@@ -972,8 +976,11 @@ export class PrdService {
     }
   }
 
+  // `notes-feature` and `notes-feature.json` name the same PRD
   private safeName(filename: string) {
-    return assertSafeFileName(filename, 'PRD file name');
+    const name = assertSafeFileName(filename, 'PRD file name');
+
+    return name.endsWith('.json') ? name : `${name}.json`;
   }
 
   private today() {

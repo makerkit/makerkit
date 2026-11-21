@@ -96,6 +96,18 @@ const BASE_INPUT = {
 };
 
 describe('PrdService.create / list / get / delete', () => {
+  it('takes a PRD by its stem as well as its file name', async () => {
+    const { service } = createHarness();
+    await service.create(BASE_INPUT);
+
+    expect((await service.get({ filename: 'notes-feature' })).filename).toBe(
+      'notes-feature.json',
+    );
+    await expect(service.get({ filename: 'missing' })).rejects.toThrow(
+      /PRD file "missing.json" not found.*list_prds/,
+    );
+  });
+
   it('saves, patches, clears and orders optional roadmap metadata', async () => {
     const { service } = createHarness();
     const { filename } = await service.create({

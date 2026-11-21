@@ -58,6 +58,7 @@ import {
   MarkNotApplicableInputSchema,
   MarkNotApplicableOutputSchema,
   ResolveOpenQuestionInputSchema,
+  ResolveOpenQuestionInputShape,
   ResolveOpenQuestionOutputSchema,
   AddGlossaryTermInputSchema,
   AddGlossaryTermOutputSchema,
@@ -605,7 +606,7 @@ export function registerPRDTools(server: McpServer, service: PrdService) {
       title: 'Answer an open question',
       description:
         'Answer an open question (by questionId, or by its exact text): it is removed from the PRD and, by default, the answer is recorded in the decision log.',
-      inputSchema: ResolveOpenQuestionInputSchema,
+      inputSchema: ResolveOpenQuestionInputShape,
       outputSchema: ResolveOpenQuestionOutputSchema,
       annotations: MUTATING_TOOL,
     },
